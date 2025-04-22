@@ -1,4 +1,5 @@
 import networkx as nx
+import numpy as np
 import uuid
 import time
 from astrbot.api.provider import Provider
@@ -94,13 +95,36 @@ class GraphMemory:
                     related_entities.add(edge[1])
         print(f"Related entities: {related_entities}")
 
-    async def run_ppo(self, entities: set):
-        """运行 PPO 算法。
+        # 执行 PPR 算法
+        self.run_ppr(seed_nodes=related_entities)
+
+    async def run_ppr(
+        self,
+        seed_nodes: set,
+        damping_factor: float = 0.5,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        passage_node_reset_factor: float = 0.05,
+    ) -> None:
+        """运行 PPR 算法。
+
+        Args:
+            reset_prob (list[float]): 重置概率，表示每个节点的重置概率。
+            damping_factor (float): 阻尼因子，通常设置为 0.5。
+            max_iter (int): 最大迭代次数。
+            tol (float): 收敛容忍度，表示当 PageRank 分数的变化小于该值时停止迭代。
+            passage_node_reset_factor (float): 段落节点的重置权重，论文中默认设置为 0.05。
 
         References:
             1. https://arxiv.org/pdf/2502.14802
         """
-        pass
+        pagerank_scores = nx.pagerank(
+            self.G,
+            alpha=damping_factor,
+            personalization=personalization,
+            max_iter=max_iter,
+            tol=tol,
+        )
 
     async def save_graph(self, file_path: str) -> None:
         """将图保存到文件"""
@@ -124,9 +148,6 @@ class GraphMemory:
                 )
             )
         return entites
-
-    async def get_relations(self, entities: dict) -> list[Relation]:
-        pass
 
     async def build_relations(self, entities: dict, text: str) -> list[Relation]:
         """构建实体之间的关系"""

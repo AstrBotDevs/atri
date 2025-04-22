@@ -4,6 +4,18 @@ import numpy as np
 from .documents.document_storage import DocumentStorage
 from .embedding.embedding_storage import EmbeddingStorage
 from ..provider.embedding import EmbeddingProvider
+from dataclasses import dataclass
+
+
+@dataclass
+class Result:
+    similarity: float
+    data: dict
+
+
+def softmax(x):
+    e_x = np.exp(-x)
+    return e_x / e_x.sum(axis=1, keepdims=True)
 
 
 class VecDB:
@@ -26,7 +38,7 @@ class VecDB:
         插入一条文本和其对应向量，自动生成 ID 并保持一致性。
         """
         metadata = metadata or {}
-        str_id = id or str(uuid.uuid4()) # 使用 UUID 作为原始 ID
+        str_id = id or str(uuid.uuid4())  # 使用 UUID 作为原始 ID
 
         # 获取向量
         vector = await self.embedding_provider.get_embedding(content)
@@ -45,23 +57,26 @@ class VecDB:
         self.embedding_storage.insert(vector, int_id)
         return int_id
 
-    async def retrieve(self, query: str, k: int = 5) -> list:
+    async def retrieve(self, query: str, k: int = 5) -> list[Result]:
         """
         搜索最相似的文档。
 
         Returns:
-            List[dict]: 查询结果，每个结果包含 id, content, metadata
+            List[Result]: 查询结果
         """
         embedding = await self.embedding_provider.get_embedding(query)
-        _, indices = self.embedding_storage.search(embedding, k)
+        distances, indices = await self.embedding_storage.search(embedding, k)
+        if len(indices[0]) == 0 or indices[0][0] == -1:
+            return []
+        distances = softmax(distances)
         result_docs = []
 
-        for idx in indices[0]:
+        for i, idx in enumerate(indices[0]):
             if idx == -1:
                 continue
             doc = await self.document_storage.get_document(idx)
             if doc:
-                result_docs.append(doc)
+                result_docs.append(Result(similarity=distances[0][i], data=doc))
         return result_docs
 
     async def delete(self, doc_id: int):
