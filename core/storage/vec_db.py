@@ -13,9 +13,14 @@ class Result:
     data: dict
 
 
-def softmax(x):
-    e_x = np.exp(-x)
-    return e_x / e_x.sum(axis=1, keepdims=True)
+def l2_to_similarity(distances: np.ndarray) -> np.ndarray:
+    """
+    Convert L2 distances to similarity scores using min-max normalization.
+    Higher score = more similar.
+    """
+    d = distances[0]  # if distances shape is (1, k), extract row
+    d_norm = (d - d.min()) / (d.max() - d.min() + 1e-8)  # avoid divide by zero
+    return 1.0 - d_norm
 
 
 class VecDB:
@@ -68,7 +73,8 @@ class VecDB:
         distances, indices = await self.embedding_storage.search(embedding, k)
         if len(indices[0]) == 0 or indices[0][0] == -1:
             return []
-        distances = softmax(distances)
+        distances = l2_to_similarity(distances[0])
+
         result_docs = []
 
         for i, idx in enumerate(indices[0]):
