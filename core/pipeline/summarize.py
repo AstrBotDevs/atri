@@ -26,4 +26,9 @@ class Summarize:
     async def assemble_context(self, context: T.List[T.Dict]) -> str:
         """Assemble the context into a single string."""
         # TODO: 适配群聊多用户的场景。
-        return "\n".join([f"{item['role']}: {item['content']}" for item in context])
+        ret = ""
+        for item in context:
+            if item["role"] == "user" and "content" in item:
+                ret += f"User: {item['content']}\n"
+            elif item["role"] == "assistant" and "content" in item:
+                ret += f"Assistant: {item['content']}\n"
