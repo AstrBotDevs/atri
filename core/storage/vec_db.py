@@ -23,6 +23,13 @@ def l2_to_similarity(distances: np.ndarray) -> np.ndarray:
     return 1.0 - d_norm
 
 
+def uuid_to_int(uuid_str: str) -> int:
+    """将UUID字符串转换为64位整数（只使用UUID的一部分）"""
+    # 去掉连字符并截取前16位十六进制数（相当于64位整数）
+    uuid_int = int(uuid_str.replace("-", "")[:16], 16)
+    return uuid_int
+
+
 class VecDB:
     """
     A class to represent a vector database.
@@ -32,7 +39,7 @@ class VecDB:
         self,
         document_storage: DocumentStorage,
         embedding_storage: EmbeddingStorage,
-        embedding_provider: EmbeddingProvider = None,
+        embedding_provider: EmbeddingProvider,
     ):
         self.document_storage = document_storage
         self.embedding_storage = embedding_storage
@@ -52,14 +59,15 @@ class VecDB:
         # 插入 SQLite 获取自增 int_id
         async with self.document_storage.connection.cursor() as cursor:
             await cursor.execute(
-                "INSERT INTO documents (id, text, meta) VALUES (?, ?, ?)",
+                "INSERT INTO documents (doc_id, text, meta) VALUES (?, ?, ?)",
                 (str_id, content, json.dumps(metadata)),
             )
             await self.document_storage.connection.commit()
-            int_id = cursor.lastrowid
+            result = await self.document_storage.get_document_by_doc_id(str_id)
+            int_id = result["id"]
 
         # 插入向量到 FAISS
-        self.embedding_storage.insert(vector, int_id)
+        await self.embedding_storage.insert(vector, int_id)
         return int_id
 
     async def retrieve(self, query: str, k: int = 5) -> list[Result]:

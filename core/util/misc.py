@@ -2,7 +2,7 @@ import json
 import re
 
 
-async def parse_json(text: str) -> dict:
+def parse_json(text: str) -> dict:
     """Parse a JSON object from the given text.
 
     Args:

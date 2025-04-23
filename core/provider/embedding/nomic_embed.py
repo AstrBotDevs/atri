@@ -16,3 +16,6 @@ class NomicEmbeddingProvider(EmbeddingProvider):
             inference_mode="local",
         )
         return np.array(output["embeddings"][0])
+
+    async def get_dim(self):
+        return 768

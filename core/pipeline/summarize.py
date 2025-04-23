@@ -21,7 +21,7 @@ class Summarize:
             system_prompt=SUMMARIZE_PROMPT,
             prompt=await self.assemble_context(context),
         )
-        return summarize_res
+        return summarize_res.completion_text
 
     async def assemble_context(self, context: T.List[T.Dict]) -> str:
         """Assemble the context into a single string."""

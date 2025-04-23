@@ -11,10 +11,11 @@ class EmbeddingStorage:
         if path and os.path.exists(path):
             self.index = faiss.read_index(path)
         else:
-            self.index = faiss.IndexFlatL2(dimention)
+            base_index = faiss.IndexFlatL2(dimention)
+            self.index = faiss.IndexIDMap(base_index)
         self.storage = {}
 
-    def insert(self, vector: np.ndarray, id: int):
+    async def insert(self, vector: np.ndarray, id: int):
         """插入向量
 
         Args:
@@ -29,8 +30,9 @@ class EmbeddingStorage:
             )
         self.index.add_with_ids(vector.reshape(1, -1), np.array([id]))
         self.storage[id] = vector
+        await self.save_index()
 
-    def search(self, vector: np.ndarray, k: int) -> tuple:
+    async def search(self, vector: np.ndarray, k: int) -> tuple:
         """搜索最相似的向量
 
         Args:
@@ -42,7 +44,7 @@ class EmbeddingStorage:
         distances, indices = self.index.search(vector.reshape(1, -1), k)
         return distances, indices
 
-    def save_index(self):
+    async def save_index(self):
         """保存索引
 
         Args:

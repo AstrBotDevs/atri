@@ -26,22 +26,57 @@ class DocumentStorage:
         """Connect to the SQLite database."""
         self.connection = await aiosqlite.connect(self.db_path)
 
-    async def get_document(self, doc_id: int):
+    async def get_document(self, id: int):
         """Retrieve a document by its ID.
 
         Args:
-            doc_id (int): The ID of the document to retrieve.
+            id (int): The ID to retrieve.
 
         Returns:
             dict: The document data.
         """
         async with self.connection.cursor() as cursor:
-            await cursor.execute("SELECT * FROM documents WHERE id = ?", (doc_id,))
+            await cursor.execute("SELECT * FROM documents WHERE id = ?", (id,))
             row = await cursor.fetchone()
             if row:
-                return dict(row)
+                return await self.tuple_to_dict(row)
             else:
                 return None
+
+    async def get_document_by_doc_id(self, doc_id: str):
+        """Retrieve a document by its doc_id.
+
+        Args:
+            doc_id (str): The doc_id of the document to retrieve.
+
+        Returns:
+            dict: The document data.
+        """
+        async with self.connection.cursor() as cursor:
+            await cursor.execute("SELECT * FROM documents WHERE doc_id = ?", (doc_id,))
+            row = await cursor.fetchone()
+            if row:
+                return await self.tuple_to_dict(row)
+            else:
+                return None
+
+    async def tuple_to_dict(self, row):
+        """Convert a tuple to a dictionary.
+
+        Args:
+            row (tuple): The row to convert.
+
+        Returns:
+            dict: The converted dictionary.
+        """
+        return {
+            "id": row[0],
+            "doc_id": row[1],
+            "text": row[2],
+            "meta": row[3],
+            "created_at": row[4],
+            "updated_at": row[5],
+        }
 
     async def close(self):
         """Close the connection to the SQLite database."""
