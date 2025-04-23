@@ -36,7 +36,7 @@ class DocumentStorage:
             dict: The document data.
         """
         async with self.connection.cursor() as cursor:
-            await cursor.execute("SELECT * FROM documents WHERE id = ?", (id,))
+            await cursor.execute("SELECT * FROM documents WHERE id = ?", (str(id),))
             row = await cursor.fetchone()
             if row:
                 return await self.tuple_to_dict(row)

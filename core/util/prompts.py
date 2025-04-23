@@ -35,6 +35,10 @@ You will be given a text which is a summary of a chat between a user and an assi
         }
     ]
 }
+
+## Requirements
+- You must use the same language as user's input.
+- You should use `USER_ID` as the entity name for any self-references (e.g., "I", "me", "my" etc.) in user messages.
 ```
 """
 
@@ -65,5 +69,10 @@ You will be given a list of entities extracted from the text and the original te
         }
     ]
 }
+
+## Requirements
+- You must use the same language as user's input.
+- You should use `USER_ID` as the source or target content for any self-references (e.g., "I", "me", "my" etc.) in user messages.
+
 ```
 """

@@ -63,13 +63,30 @@ class GraphMemory:
         if not isinstance(self.G, nx.Graph):
             raise ValueError(f"File {file_path} is not a valid graph file.")
 
-    async def add_to_graph(self, text: str) -> None:
+    async def get_phase_node(self, entity_name: str) -> str | None:
+        """查找是否有对应的 Phase 节点
+
+        Returns:
+            节点的 id, 如果没找到, 返回 None
+        """
+        for node, data in self.G.nodes(data=True):
+            if (
+                data.get("node_type") == PHASE_NODE_TYPE
+                and data.get("name") == entity_name
+            ):
+                return node
+        return None
+
+    async def add_to_graph(self, text: str, user_id: str, username: str = None) -> None:
         """将文本添加到图中
 
         1. Extract entities from the text.
         2. Build relations between entities.
         3. Store the graph in memory.
         """
+        if not username:
+            username = user_id
+
         entities = await self.get_entities(text)
         relations = await self.build_relations(entities, text)
         self.logger.info(f"Entities: {entities}")
@@ -85,21 +102,30 @@ class GraphMemory:
         self.G.add_node(
             summary_id, node_type=PASSAGE_NODE_TYPE, summary=text, ts=timestamp
         )
+
         # Add the phase nodes
         _node_id = {}
         for entity in entities:
-            _node_id[entity.name] = str(uuid.uuid4())
+            entity_name = entity.name
+            entity_real_name = entity.name.replace("USER_ID", user_id)
+            if node := await self.get_phase_node(entity_real_name):
+                self.logger.info(f"Phase node already exists: {node}")
+                _node_id[entity_name] = node
+            else:
+                _node_id[entity_name] = str(uuid.uuid4())
             self.G.add_node(
-                _node_id[entity.name],
+                _node_id[entity_name],
                 node_type=PHASE_NODE_TYPE,
-                name=entity.name,
+                name=entity_real_name,
+                user_id=user_id,
+                username=username,
                 type=entity.type,
                 ts=timestamp,
             )
             # phase node - passage node
             self.G.add_edge(
                 summary_id,
-                _node_id[entity.name],
+                _node_id[entity_name],
                 relation_type=PASSAGE_PHASE_RELATION_TYPE,
                 ts=timestamp,
             )
@@ -108,8 +134,8 @@ class GraphMemory:
             if relation.source not in _node_id or relation.target not in _node_id:
                 continue
             self.G.add_edge(
-                _node_id[relation.source],
-                _node_id[relation.target],
+                _node_id[relation.source], # entity_uuid
+                _node_id[relation.target], # entity_uuid
                 relation_type=relation.relation_type,
                 ts=timestamp,
                 fact_id=fact_id,  # 将 fact ID 放在边上
@@ -153,7 +179,7 @@ class GraphMemory:
 
         # 执行 PPR 算法，得到最终的文档
         ranked_docs = await self.run_ppr(
-            seed_phase_nodes=related_node_scores,
+            seed_phase_nodes=final_related_node_score,
             seed_passage_nodes=related_passage_node_scores,
         )
         ret = {}

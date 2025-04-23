@@ -16,7 +16,7 @@ class ATRIPlugin(Star):
         super().__init__(context)
         self.user_counter = defaultdict(int)
         # 阈值
-        self.sum_threshold = 5
+        self.sum_threshold = 10
 
     @filter.on_astrbot_loaded()
     async def on_astrbot_loaded(self):
@@ -48,8 +48,14 @@ class ATRIPlugin(Star):
                 f"User {uid} has sent {self.user_counter[uid]} messages. Summarizing conversation."
             )
             self.user_counter[uid] = 0
-            text = await self.memory_layer.summarizer.summarize(json.loads(conv.history))
-            await self.memory_layer.graph_memory.add_to_graph(text)
+            text = await self.memory_layer.summarizer.summarize(
+                json.loads(conv.history)
+            )
+            await self.memory_layer.graph_memory.add_to_graph(
+                text=text,
+                user_id=str(event.get_sender_id()),
+                username=event.get_sender_name()
+            )
             logger.info("Added to graph.")
 
     async def terminate(self):

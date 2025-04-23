@@ -1,10 +1,13 @@
 import uuid
 import json
+import logging
 import numpy as np
 from .documents.document_storage import DocumentStorage
 from .embedding.embedding_storage import EmbeddingStorage
 from ..provider.embedding import EmbeddingProvider
 from dataclasses import dataclass
+
+logger = logging.getLogger("astrbot")
 
 
 @dataclass
@@ -55,8 +58,6 @@ class VecDB:
         # 获取向量
         vector = await self.embedding_provider.get_embedding(content)
         vector = np.array(vector, dtype=np.float32)
-
-        # 插入 SQLite 获取自增 int_id
         async with self.document_storage.connection.cursor() as cursor:
             await cursor.execute(
                 "INSERT INTO documents (doc_id, text, meta) VALUES (?, ?, ?)",
@@ -79,9 +80,11 @@ class VecDB:
         """
         embedding = await self.embedding_provider.get_embedding(query)
         distances, indices = await self.embedding_storage.search(embedding, k)
+        # print(distances, indices)
         if len(indices[0]) == 0 or indices[0][0] == -1:
             return []
-        distances = l2_to_similarity(distances[0])
+        distances = l2_to_similarity(distances)
+        logger.debug(f"retrieval from faiss: SIMILARITY {distances} INDICES {indices}")
 
         result_docs = []
 
@@ -90,7 +93,7 @@ class VecDB:
                 continue
             doc = await self.document_storage.get_document(idx)
             if doc:
-                result_docs.append(Result(similarity=distances[0][i], data=doc))
+                result_docs.append(Result(similarity=distances[i], data=doc))
         return result_docs
 
     async def delete(self, doc_id: int):
