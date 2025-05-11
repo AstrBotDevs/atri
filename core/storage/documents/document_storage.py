@@ -26,22 +26,26 @@ class DocumentStorage:
         """Connect to the SQLite database."""
         self.connection = await aiosqlite.connect(self.db_path)
 
-    async def get_document(self, id: int):
-        """Retrieve a document by its ID.
+    async def get_document_ids(self, metadata_filters: dict):
+        """Retrieve documents by metadata filters.
 
         Args:
-            id (int): The ID to retrieve.
+            metadata_filters (dict): The metadata filters to apply.
 
         Returns:
-            dict: The document data.
+            list: The list of document IDs(primary key, not doc_id) that match the filters.
         """
+        # metadata filter -> SQL WHERE clause
+        where_clauses = []
+        for key, val in metadata_filters.items():
+            where_clauses.append(f"json_extract(metadata, '$.{key}') = ?")
+        where_sql = " AND ".join(where_clauses) or "1=1"
+
         async with self.connection.cursor() as cursor:
-            await cursor.execute("SELECT * FROM documents WHERE id = ?", (str(id),))
-            row = await cursor.fetchone()
-            if row:
-                return await self.tuple_to_dict(row)
-            else:
-                return None
+            await cursor.execute("SELECT * FROM documents WHERE " + where_sql, tuple(metadata_filters.values()))
+            filtered_ids = [row[0] for row in cursor.fetchall()]
+        return filtered_ids
+
 
     async def get_document_by_doc_id(self, doc_id: str):
         """Retrieve a document by its doc_id.
@@ -72,12 +76,10 @@ class DocumentStorage:
         return {
             "id": row[0],
             "doc_id": row[1],
-            "user_id": row[2],
-            "group_id": row[3],
-            "text": row[4],
-            "meta": row[5],
-            "created_at": row[6],
-            "updated_at": row[7],
+            "text": row[2],
+            "metadata": row[3],
+            "created_at": row[4],
+            "updated_at": row[5],
         }
 
     async def close(self):

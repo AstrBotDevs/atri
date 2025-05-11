@@ -53,8 +53,6 @@ class VecDB:
         content: str,
         metadata: dict = None,
         id: str = None,
-        user_id: str = None,
-        group_id: str = None,
     ) -> int:
         """
         插入一条文本和其对应向量，自动生成 ID 并保持一致性。
@@ -67,8 +65,8 @@ class VecDB:
         vector = np.array(vector, dtype=np.float32)
         async with self.document_storage.connection.cursor() as cursor:
             await cursor.execute(
-                "INSERT INTO documents (doc_id, user_id, group_id, text, meta) VALUES (?, ?, ?, ?, ?)",
-                (str_id, user_id, group_id, content, json.dumps(metadata)),
+                "INSERT INTO documents (doc_id, text, metadata) VALUES (?, ?, ?)",
+                (str_id, content, json.dumps(metadata)),
             )
             await self.document_storage.connection.commit()
             result = await self.document_storage.get_document_by_doc_id(str_id)
@@ -78,7 +76,9 @@ class VecDB:
         await self.embedding_storage.insert(vector, int_id)
         return int_id
 
-    async def retrieve(self, query: str, k: int = 5, filters: dict = None) -> list[Result]:
+    async def retrieve(
+        self, query: str, k: int = 5, metadata_filters: dict = None
+    ) -> list[Result]:
         """
         搜索最相似的文档。
 
@@ -86,22 +86,28 @@ class VecDB:
             List[Result]: 查询结果
         """
         embedding = await self.embedding_provider.get_embedding(query)
-        distances, indices = await self.embedding_storage.search(embedding, k)
-        # print(distances, indices)
-        if len(indices[0]) == 0 or indices[0][0] == -1:
+        # distances, indices = await self.embedding_storage.search(embedding, k)
+        # # print(distances, indices)
+        # if len(indices[0]) == 0 or indices[0][0] == -1:
+        #     return []
+        # distances = l2_to_similarity(distances)
+        # logger.debug(f"retrieval from faiss: SIMILARITY {distances} INDICES {indices}")
+
+        # result_docs = []
+
+        # for i, idx in enumerate(indices[0]):
+        #     if idx == -1:
+        #         continue
+        #     doc = await self.document_storage.get_document(idx)
+        #     if doc:
+        #         result_docs.append(Result(similarity=distances[i], data=doc))
+        # return result_docs
+
+        filtered_ids = await self.document_storage.get_document_ids(metadata_filters)
+        if not filtered_ids:
             return []
-        distances = l2_to_similarity(distances)
-        logger.debug(f"retrieval from faiss: SIMILARITY {distances} INDICES {indices}")
 
-        result_docs = []
-
-        for i, idx in enumerate(indices[0]):
-            if idx == -1:
-                continue
-            doc = await self.document_storage.get_document(idx)
-            if doc:
-                result_docs.append(Result(similarity=distances[i], data=doc))
-        return result_docs
+        # restrict FAISS search to filtered ids
 
     async def delete(self, doc_id: int):
         """

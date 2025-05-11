@@ -1,4 +1,3 @@
-import json
 from astrbot.api import logger
 from astrbot.api.provider import ProviderRequest
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult  # noqa
