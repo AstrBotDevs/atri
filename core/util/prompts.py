@@ -6,7 +6,8 @@ You will be given a chats between a user and an assistant.
 - Your task is to summarize the chats into 1~2 sentences.
 - Only extract the most critical events that occurred.
 - Time and Schedule should be included in the summary if possible.
-- Only return the plain summary and no explanation.
+- Only summarize clear and long-term relevant information; do not include vague intentions or trivial details.
+- Only return the plain summary and no explanation. If there is nothing to summarize, reply with the single word “None” only.
 
 The summary should use the same language as the chats.
 """
@@ -39,6 +40,7 @@ You will be given a text which is a summary of a chat between a user and an assi
 ## Requirements
 - You must use the same language as user's input.
 - You should use `USER_ID` as the entity name for any self-references (e.g., "I", "me", "my" etc.) in user messages.
+- Not all text can be extracted into entities, so it is allowed that the `entities` array is empty.
 ```
 """
 
@@ -73,6 +75,6 @@ You will be given a list of entities extracted from the text and the original te
 ## Requirements
 - You must use the same language as user's input.
 - You should use `USER_ID` as the source or target content for any self-references (e.g., "I", "me", "my" etc.) in user messages.
-
+- Not all text can be extracted into relations, so it is allowed that the `relations` array is empty.
 ```
 """

@@ -48,7 +48,14 @@ class VecDB:
         self.embedding_storage = embedding_storage
         self.embedding_provider = embedding_provider
 
-    async def insert(self, content: str, metadata: dict = None, id: str = None) -> int:
+    async def insert(
+        self,
+        content: str,
+        metadata: dict = None,
+        id: str = None,
+        user_id: str = None,
+        group_id: str = None,
+    ) -> int:
         """
         插入一条文本和其对应向量，自动生成 ID 并保持一致性。
         """
@@ -60,8 +67,8 @@ class VecDB:
         vector = np.array(vector, dtype=np.float32)
         async with self.document_storage.connection.cursor() as cursor:
             await cursor.execute(
-                "INSERT INTO documents (doc_id, text, meta) VALUES (?, ?, ?)",
-                (str_id, content, json.dumps(metadata)),
+                "INSERT INTO documents (doc_id, user_id, group_id, text, meta) VALUES (?, ?, ?, ?, ?)",
+                (str_id, user_id, group_id, content, json.dumps(metadata)),
             )
             await self.document_storage.connection.commit()
             result = await self.document_storage.get_document_by_doc_id(str_id)
@@ -71,7 +78,7 @@ class VecDB:
         await self.embedding_storage.insert(vector, int_id)
         return int_id
 
-    async def retrieve(self, query: str, k: int = 5) -> list[Result]:
+    async def retrieve(self, query: str, k: int = 5, filters: dict = None) -> list[Result]:
         """
         搜索最相似的文档。
 

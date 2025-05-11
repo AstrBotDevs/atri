@@ -77,7 +77,7 @@ class GraphMemory:
                 return node
         return None
 
-    async def add_to_graph(self, text: str, user_id: str, username: str = None) -> None:
+    async def add_to_graph(self, text: str, user_id: str, group_id: str, username: str = None) -> None:
         """将文本添加到图中
 
         1. Extract entities from the text.
@@ -88,7 +88,17 @@ class GraphMemory:
             username = user_id
 
         entities = await self.get_entities(text)
+
+        if not entities:
+            self.logger.info(f"对于`{text}`，没有检出任何 entities ")
+            return
+
         relations = await self.build_relations(entities, text)
+
+        if not relations:
+            self.logger.info(f"对于`{text}` `{entities}`，没有检出任何 relations ")
+            return
+
         self.logger.info(f"Entities: {entities}")
         self.logger.info(f"Relations: {relations}")
         timestamp = int(time.time())
@@ -98,6 +108,8 @@ class GraphMemory:
         _ = await self.vec_db_summary.insert(
             text,
             id=summary_id,
+            user_id=user_id,
+            group_id=group_id,
         )
         self.G.add_node(
             summary_id, node_type=PASSAGE_NODE_TYPE, summary=text, ts=timestamp
@@ -134,8 +146,8 @@ class GraphMemory:
             if relation.source not in _node_id or relation.target not in _node_id:
                 continue
             self.G.add_edge(
-                _node_id[relation.source], # entity_uuid
-                _node_id[relation.target], # entity_uuid
+                _node_id[relation.source],  # entity_uuid
+                _node_id[relation.target],  # entity_uuid
                 relation_type=relation.relation_type,
                 ts=timestamp,
                 fact_id=fact_id,  # 将 fact ID 放在边上
@@ -147,11 +159,12 @@ class GraphMemory:
             )
         await self.save_graph(self.file_path)
 
-    async def search_graph(self, query: str, num_to_retrieval: int = 5) -> list[dict]:
+    async def search_graph(self, query: str, num_to_retrieval: int = 5, filters: dict = None) -> list[dict]:
         # --- FACT RESULTS
         results = await self.vec_db.retrieve(
             query=query,
             k=5,
+            filters=filters,
         )
         self.logger.info(f"Search Fact results: {results}")
         # 通过 ID 获取边，进而得到所有实体
@@ -171,6 +184,7 @@ class GraphMemory:
         summary_results = await self.vec_db_summary.retrieve(
             query=query,
             k=3,
+            filters=filters,
         )
         # related_passage_nodes: set[tuple[str, float]] = set()
         related_passage_node_scores: dict[str, float] = {}

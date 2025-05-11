@@ -17,6 +17,7 @@ class ATRIPlugin(Star):
         self.user_counter = defaultdict(int)
         # 阈值
         self.sum_threshold = 10
+        self.dialogs = defaultdict(list)  # umo -> history
 
     @filter.on_astrbot_loaded()
     async def on_astrbot_loaded(self):
@@ -36,27 +37,55 @@ class ATRIPlugin(Star):
                 "\n\nHere are related memories between you and user:\n" + str(results)
             )
 
-    @filter.after_message_sent()
+    def parse_identifier(self, event: AstrMessageEvent):
+        name = event.get_sender_name()
+        user_id = event.get_sender_id()
+        if name == user_id:
+            return name
+        elif not name:
+            return user_id
+        else:
+            return f"{name}({user_id})"
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
     async def after_message(self, event: AstrMessageEvent):
         """处理消息事件"""
+        if event.get_group_id() and event.get_group_id() != "975206796":
+            return
+        if not event.message_str:  # TODO: 处理多模态信息
+            return
         uid = event.unified_msg_origin
+
+        identifier = self.parse_identifier(event)
+        message = event.message_str.replace("\n", " ")
+        self.dialogs[uid].append(
+            f"{identifier}: {message}"
+        )
+
         self.user_counter[uid] += 1
         if self.user_counter[uid] >= self.sum_threshold:
-            cid = await self.context.conversation_manager.get_curr_conversation_id(uid)
-            conv = await self.context.conversation_manager.get_conversation(uid, cid)
+            # cid = await self.context.conversation_manager.get_curr_conversation_id(uid)
+            # conv = await self.context.conversation_manager.get_conversation(uid, cid)
             logger.info(
                 f"User {uid} has sent {self.user_counter[uid]} messages. Summarizing conversation."
             )
             self.user_counter[uid] = 0
-            text = await self.memory_layer.summarizer.summarize(
-                json.loads(conv.history)
-            )
+            dialog = self.dialogs[uid]
+            dialog_str = "\n".join(dialog)
+            text = await self.memory_layer.summarizer.summarize(dialog_str)
+            if text.strip() == "None":
+                logger.info(
+                    "没有符合总结的内容，跳过这轮总结。"
+                )  # TODO: 可以让模型选择是否“继续观察”
+                return
             await self.memory_layer.graph_memory.add_to_graph(
                 text=text,
                 user_id=str(event.get_sender_id()),
-                username=event.get_sender_name()
+                group_id=str(event.get_group_id()),
+                username=event.get_sender_name(),
             )
             logger.info("Added to graph.")
+            self.dialogs[uid].clear()
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""

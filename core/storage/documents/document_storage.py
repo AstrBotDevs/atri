@@ -72,10 +72,12 @@ class DocumentStorage:
         return {
             "id": row[0],
             "doc_id": row[1],
-            "text": row[2],
-            "meta": row[3],
-            "created_at": row[4],
-            "updated_at": row[5],
+            "user_id": row[2],
+            "group_id": row[3],
+            "text": row[4],
+            "meta": row[5],
+            "created_at": row[6],
+            "updated_at": row[7],
         }
 
     async def close(self):

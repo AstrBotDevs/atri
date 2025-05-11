@@ -2,6 +2,8 @@
 CREATE TABLE documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     doc_id TEXT NOT NULL,
+    user_id TEXT,
+    group_id TEXT,
     text TEXT NOT NULL,
     meta TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
