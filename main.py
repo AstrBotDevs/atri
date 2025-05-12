@@ -1,6 +1,6 @@
 from astrbot.api import logger
 from astrbot.api.provider import ProviderRequest
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult  # noqa
+from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult, ResultContentType  # noqa
 from astrbot.api.star import Context, Star, register, StarTools
 from astrbot.api import logger  # noqa
 from .core.starter import ATRIMemoryStarter
@@ -15,7 +15,7 @@ class ATRIPlugin(Star):
         super().__init__(context)
         self.user_counter = defaultdict(int)
         # 阈值
-        self.sum_threshold = 10
+        self.sum_threshold = 3
         self.dialogs = defaultdict(list)  # umo -> history
 
     @filter.on_astrbot_loaded()
@@ -28,9 +28,18 @@ class ATRIPlugin(Star):
         await self.memory_layer.initialize()
 
     @filter.on_llm_request()
-    async def requesting(self, event: MessageEventResult, req: ProviderRequest):
+    async def requesting(self, event: AstrMessageEvent, req: ProviderRequest):
         """处理请求事件"""
-        results = await self.memory_layer.graph_memory.search_graph(req.prompt)
+        filters = {
+            "user_id": str(event.get_sender_id()),
+        }
+        if event.get_group_id():
+            filters["group_id"] = str(event.get_group_id())
+        results = await self.memory_layer.graph_memory.search_graph(
+            req.prompt,
+            num_to_retrieval=5,
+            filters=filters,
+        )
         if results:
             req.system_prompt += (
                 "\n\nHere are related memories between you and user:\n" + str(results)
@@ -46,20 +55,22 @@ class ATRIPlugin(Star):
         else:
             return f"{name}({user_id})"
 
-    @filter.event_message_type(filter.EventMessageType.ALL)
+    @filter.after_message_sent()
     async def after_message(self, event: AstrMessageEvent):
         """处理消息事件"""
         if event.get_group_id() and event.get_group_id() != "975206796":
             return
         if not event.message_str:  # TODO: 处理多模态信息
             return
+        result = event.get_result()
+        # TODO: streaming result?
+        if not result or result.result_content_type != ResultContentType.LLM_RESULT:
+            return
         uid = event.unified_msg_origin
-
         identifier = self.parse_identifier(event)
         message = event.message_str.replace("\n", " ")
-        self.dialogs[uid].append(
-            f"{identifier}: {message}"
-        )
+        self.dialogs[uid].append(f"{identifier}: {message}")
+        # self.dialogs[uid].append(f"Me: {result.get_plain_text()}")
 
         self.user_counter[uid] += 1
         if self.user_counter[uid] >= self.sum_threshold:
@@ -72,6 +83,7 @@ class ATRIPlugin(Star):
             dialog = self.dialogs[uid]
             dialog_str = "\n".join(dialog)
             text = await self.memory_layer.summarizer.summarize(dialog_str)
+            logger.debug(f"Summarized text: {text}")
             if text.strip() == "None":
                 logger.info(
                     "没有符合总结的内容，跳过这轮总结。"

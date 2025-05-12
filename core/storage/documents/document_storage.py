@@ -1,6 +1,6 @@
 import aiosqlite
 import os
-
+from loguru import logger
 
 class DocumentStorage:
     def __init__(self, db_path: str):
@@ -26,8 +26,8 @@ class DocumentStorage:
         """Connect to the SQLite database."""
         self.connection = await aiosqlite.connect(self.db_path)
 
-    async def get_document_ids(self, metadata_filters: dict):
-        """Retrieve documents by metadata filters.
+    async def get_documents(self, metadata_filters: dict, ids: list = None):
+        """Retrieve documents by metadata filters and ids.
 
         Args:
             metadata_filters (dict): The metadata filters to apply.
@@ -37,14 +37,24 @@ class DocumentStorage:
         """
         # metadata filter -> SQL WHERE clause
         where_clauses = []
+        values = []
         for key, val in metadata_filters.items():
             where_clauses.append(f"json_extract(metadata, '$.{key}') = ?")
+            values.append(val)
+        if ids is not None and len(ids) > 0:
+            ids = [str(i) for i in ids if i != -1]
+            where_clauses.append("id IN ({})".format(",".join("?" * len(ids))))
+            values.extend(ids)
         where_sql = " AND ".join(where_clauses) or "1=1"
 
+        result = []
         async with self.connection.cursor() as cursor:
-            await cursor.execute("SELECT * FROM documents WHERE " + where_sql, tuple(metadata_filters.values()))
-            filtered_ids = [row[0] for row in cursor.fetchall()]
-        return filtered_ids
+            sql = "SELECT * FROM documents WHERE " + where_sql
+            logger.debug(f"DocDB Query SQL -> {sql} (values: {values})")
+            await cursor.execute(sql, values)
+            for row in await cursor.fetchall():
+                result.append(await self.tuple_to_dict(row))
+        return result
 
 
     async def get_document_by_doc_id(self, doc_id: str):

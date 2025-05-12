@@ -6,10 +6,12 @@ CREATE TABLE documents (
     metadata TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)
+);
 
 ALTER TABLE documents
 ADD COLUMN group_id TEXT GENERATED ALWAYS AS (json_extract(metadata, '$.group_id')) STORED;
+ALTER TABLE documents
 ADD COLUMN user_id TEXT GENERATED ALWAYS AS (json_extract(metadata, '$.user_id')) STORED;
+
 CREATE INDEX idx_documents_user_id ON documents(user_id);
 CREATE INDEX idx_documents_group_id ON documents(group_id);

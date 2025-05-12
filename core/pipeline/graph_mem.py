@@ -77,7 +77,12 @@ class GraphMemory:
                 return node
         return None
 
-    async def add_to_graph(self, text: str, user_id: str, group_id: str, username: str = None) -> None:
+    async def add_to_graph(self,
+        text: str,
+        user_id: str,
+        group_id: str = None,
+        username: str = None
+    ) -> None:
         """将文本添加到图中
 
         1. Extract entities from the text.
@@ -105,11 +110,15 @@ class GraphMemory:
         # Add the passage node
         summary_id = str(uuid.uuid4())
         self.logger.info(f"Summary insert -> {text} ID: {summary_id}")
+        metadata = {
+            "user_id": user_id,
+        }
+        if group_id:
+            metadata["group_id"] = group_id
         _ = await self.vec_db_summary.insert(
             text,
-            id=summary_id,
-            user_id=user_id,
-            group_id=group_id,
+            metadata=metadata,
+            id=summary_id, # doc_id
         )
         self.G.add_node(
             summary_id, node_type=PASSAGE_NODE_TYPE, summary=text, ts=timestamp
@@ -164,7 +173,7 @@ class GraphMemory:
         results = await self.vec_db.retrieve(
             query=query,
             k=5,
-            filters=filters,
+            metadata_filters=filters,
         )
         self.logger.info(f"Search Fact results: {results}")
         # 通过 ID 获取边，进而得到所有实体
@@ -184,7 +193,7 @@ class GraphMemory:
         summary_results = await self.vec_db_summary.retrieve(
             query=query,
             k=3,
-            filters=filters,
+            metadata_filters=filters,
         )
         # related_passage_nodes: set[tuple[str, float]] = set()
         related_passage_node_scores: dict[str, float] = {}

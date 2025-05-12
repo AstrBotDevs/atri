@@ -7,9 +7,12 @@ You will be given a chats between a user and an assistant.
 - Only extract the most critical events that occurred.
 - Time and Schedule should be included in the summary if possible.
 - Only summarize clear and long-term relevant information; do not include vague intentions or trivial details.
-- Only return the plain summary and no explanation. If there is nothing to summarize, reply with the single word “None” only.
+- Only return the plain summary and no explanation.
+- The summary should be in the same language as the chats.
 
-The summary should use the same language as the chats.
+"""
+
+"""- If you think there is nothing to summarize, you can reply with the single word "None" only.
 """
 
 EXTRACT_ENTITES_PROMPT = """
