@@ -24,10 +24,9 @@ class KuzuGraphStore(GraphStore):
 
     def add_node(self, node: GraphNode) -> None:
         prop_str = json.dumps(node.properties, ensure_ascii=False)
-        query = f"""
-            MERGE INTO Node(id, properties)
-            VALUES ('{node.id}', to_json('{prop_str.replace("'", "''")}'))
-        """
+        value = "{id: '" + node.id + "', properties: to_json(" + prop_str.replace("'", "''") + ")}"
+        query = "MERGE (n:Node " + value + ");"
+        print(query)
         self.conn.execute(query)
 
     def add_edge(self, edge: GraphEdge) -> None:
@@ -37,6 +36,7 @@ class KuzuGraphStore(GraphStore):
             WHERE a.id = '{edge.source}' AND b.id = '{edge.target}'
             MERGE (a)-[:Edge {{properties: to_json('{prop_str.replace("'", "''")}')}}]->(b)
         """
+        print(query)
         self.conn.execute(query)
 
     def find_node(self, filter: dict) -> str | None:
@@ -61,8 +61,7 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                val = json.dumps(v, ensure_ascii=False).replace("'", "''")
-                clauses.append(f"JSON_EXTRACT(e.properties, '$.{k}') = '{val}'")
+                clauses.append(f"JSON_EXTRACT(e.properties, '{k}') = '\"{v}\"'")
             where_clause = "WHERE " + " AND ".join(clauses)
 
         query = f"""
@@ -70,6 +69,7 @@ class KuzuGraphStore(GraphStore):
             {where_clause}
             RETURN a.id, b.id, e.properties;
         """
+        print(query)
         result = self.conn.execute(query)
         while result.has_next():
             src, tgt, prop_str = result.get_next()
@@ -80,11 +80,11 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                val = json.dumps(v, ensure_ascii=False).replace("'", "''")
-                clauses.append(f"JSON_EXTRACT(n.properties, '$.{k}') = '{val}'")
+                clauses.append(f"JSON_EXTRACT(n.properties, '{k}') = '\"{v}\"'")
             where_clause = "WHERE " + " AND ".join(clauses)
 
         query = f"MATCH (n:Node) {where_clause} RETURN n.id, n.properties;"
+        print(query)
         result = self.conn.execute(query)
         while result.has_next():
             id_val, prop_str = result.get_next()
@@ -97,8 +97,7 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                val = json.dumps(v, ensure_ascii=False).replace("'", "''")
-                clauses.append(f"JSON_EXTRACT(e.properties, '$.{k}') = '{val}'")
+                clauses.append(f"JSON_EXTRACT(e.properties, '{k}') = '\"{v}\"'")
             where_clause = "WHERE " + " AND ".join(clauses)
 
         query = f"""
@@ -134,8 +133,7 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                val = json.dumps(v, ensure_ascii=False).replace("'", "''")
-                clauses.append(f"JSON_EXTRACT(e.properties, '$.{k}') = '{val}'")
+                clauses.append(f"JSON_EXTRACT(u.properties, '{k}') = '\"{v}\"'")
             where_clause = "WHERE " + " AND ".join(clauses)
 
         query = f"""

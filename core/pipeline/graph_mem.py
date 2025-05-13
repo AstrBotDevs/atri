@@ -268,6 +268,7 @@ class GraphMemory:
 
         ranked_docs = await self.run_ppr(
             personalization=personalization,
+            filter=filters,
         )
         ret = {}
         i = 0
