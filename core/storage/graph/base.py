@@ -34,7 +34,8 @@ class BaseEdge:
 
 @dataclass
 class PassageEdge(BaseEdge):
-    pass
+    summary_id: str
+    """Summary ID"""
 
 @dataclass
 class PhaseEdge(BaseEdge):

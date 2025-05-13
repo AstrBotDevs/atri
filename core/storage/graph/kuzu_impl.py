@@ -16,15 +16,13 @@ class KuzuGraphStore(GraphStore):
             (
                 "CREATE NODE TABLE IF NOT EXISTS PhaseNode(id STRING, ts TIMESTAMP, name STRING, type STRING, PRIMARY KEY(id));"
                 "CREATE NODE TABLE IF NOT EXISTS PassageNode(id STRING, ts TIMESTAMP, user_id STRING, PRIMARY KEY(id));"
-                "CREATE REL TABLE IF NOT EXISTS PassageEdge(FROM PhaseNode TO PassageNode, ts TIMESTAMP, relation_type STRING, user_id STRING);"
-                "CREATE REL TABLE IF NOT EXISTS PhaseEdge(FROM PhaseNode TO PhaseNode, ts TIMESTAMP, relation_type STRING, user_id STRING);"
+                "CREATE REL TABLE IF NOT EXISTS PassageEdge(FROM PhaseNode TO PassageNode, ts TIMESTAMP, relation_type STRING, summary_id STRING, user_id STRING);"
+                "CREATE REL TABLE IF NOT EXISTS PhaseEdge(FROM PhaseNode TO PhaseNode, ts TIMESTAMP, relation_type STRING, fact_id STRING, user_id STRING);"
             )
         )
 
     def add_passage_node(self, node: PassageNode) -> None:
-        query = (
-            f"MERGE (:PassageNode {{id: '{node.id}', user_id: '{node.user_id}' ts: to_timestamp({node.ts})}});"
-        )
+        query = f"MERGE (:PassageNode {{id: '{node.id}', user_id: '{node.user_id}' ts: to_timestamp({node.ts})}});"
         print(query)
         self.conn.execute(query)
 
@@ -37,7 +35,7 @@ class KuzuGraphStore(GraphStore):
         query = f"""
             MATCH (a:PhaseNode), (b:PassageNode)
             WHERE a.id = '{edge.source}' AND b.id = '{edge.target}'
-            MERGE (a)-[:PassageEdge {{ts: to_timestamp({edge.ts}), relation_type: '{edge.relation_type}', user_id: '{edge.user_id}'}}]->(b)
+            MERGE (a)-[:PassageEdge {{ts: to_timestamp({edge.ts}), relation_type: '{edge.relation_type}', summary_id: '{edge.summary_id}', user_id: '{edge.user_id}'}}]->(b)
         """
         print(query)
         self.conn.execute(query)
@@ -96,26 +94,26 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                if k in ["ts", "relation_type"]:
-                    clauses.append(f"e.{k} = '{v}'")
-                elif k == "source":
-                    clauses.append(f"a.id = '{v}'")
-                elif k == "target":
-                    clauses.append(f"b.id = '{v}'")
+                clauses.append(f"e.{k} = '{v}'")
             if clauses:
                 where_clause = "WHERE " + " AND ".join(clauses)
 
         query = f"""
             MATCH (a:PhaseNode)-[e:PassageEdge]->(b:PassageNode)
             {where_clause}
-            RETURN a.id, b.id, e.ts, e.relation_type, e.user_id;
+            RETURN a.id, b.id, e.ts, e.relation_type, e.summary_id, e.user_id;
         """
         print(query)
         result = self.conn.execute(query)
         while result.has_next():
-            src, tgt, ts, rel_type, user_id = result.get_next()
+            src, tgt, ts, rel_type, summary_id, user_id = result.get_next()
             yield PassageEdge(
-                source=src, target=tgt, ts=ts, relation_type=rel_type, user_id=user_id
+                source=src,
+                target=tgt,
+                ts=ts,
+                relation_type=rel_type,
+                summary_id=summary_id,
+                user_id=user_id,
             )
 
     def get_phase_edges(self, filter: dict = {}) -> Iterable[PhaseEdge]:
@@ -123,12 +121,7 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                if k in ["ts", "relation_type", "fact_id"]:
-                    clauses.append(f"e.{k} = '{v}'")
-                elif k == "source":
-                    clauses.append(f"a.id = '{v}'")
-                elif k == "target":
-                    clauses.append(f"b.id = '{v}'")
+                clauses.append(f"e.{k} = '{v}'")
             if clauses:
                 where_clause = "WHERE " + " AND ".join(clauses)
 
@@ -162,7 +155,11 @@ class KuzuGraphStore(GraphStore):
         result = self.conn.execute(query)
         while result.has_next():
             a, b = result.get_next()
-            yield (a, b)
+            a.pop("_id")
+            a.pop("_label")
+            b.pop("_id")
+            b.pop("_label")
+            yield (PhaseNode(**a), PhaseNode(**b))
 
     def save(self, path: str) -> None:
         # Kuzu automatically persists to disk; left for interface compatibility
@@ -182,15 +179,21 @@ class KuzuGraphStore(GraphStore):
     ):
         query = f"""
         MATCH (u) -[e]->(v)
-        WHERE e.id = '{user_id}'
+        WHERE e.user_id = '{user_id}'
         RETURN u, e, v;
         """
         result = self.conn.execute(query)
         G = result.get_as_networkx()
+        nodes = list(G.nodes(data=True))
+        new_personalization = {}
+        for node_id, data in nodes:
+            id = data.get("id")
+            new_personalization[node_id] = personalization.get(id, 0.0)
+        print("Graph Metadata:", G.nodes(data=True), G.edges(data=True))
         ranked_scores: dict[str, float] = nx.pagerank(
             G,
             alpha=damping_factor,
-            personalization=personalization,
+            personalization=new_personalization,
             max_iter=max_iter,
             tol=tol,
         )

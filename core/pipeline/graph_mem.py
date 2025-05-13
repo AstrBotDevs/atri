@@ -167,6 +167,7 @@ class GraphMemory:
                     target=_node_id[entity_name],
                     ts=timestamp,
                     relation_type=PASSAGE_PHASE_RELATION_TYPE,
+                    summary_id=summary_id,
                     user_id=user_id,
                 )
             )
