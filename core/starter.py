@@ -5,6 +5,7 @@ from .provider.embedding.nomic_embed import NomicEmbeddingProvider
 from .storage.vec_db import VecDB
 from .storage.documents.document_storage import DocumentStorage
 from .storage.embedding.embedding_storage import EmbeddingStorage
+from .storage.graph.kuzu_impl import KuzuGraphStore
 from .pipeline.graph_mem import GraphMemory
 from .pipeline.summarize import Summarize
 
@@ -58,6 +59,11 @@ class ATRIMemoryStarter:
             embedding_provider=self.embedding_model,
         )
 
+        # graph store
+        kuzu_graph_store = KuzuGraphStore(
+            db_path=self.mem_graph_path,
+        )
+
         # TODO: 支持当用户更换提供商时，这里也同步更换
         self.provider = self.llm_provider
         self.graph_memory = GraphMemory(
@@ -66,5 +72,6 @@ class ATRIMemoryStarter:
             embedding_provider=self.embedding_model,
             vec_db=self.fact_vec_db,
             vec_db_summary=self.summary_vec_db,
+            graph_store=kuzu_graph_store,
         )
         logger.info("Graph memory initialized successfully.")

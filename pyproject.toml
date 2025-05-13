@@ -11,4 +11,5 @@ dependencies = [
     "nomic[local]",
     "scipy>=1.15.3",
     "numpy>=2.2.4",
+    "kuzu>=0.10.0"
 ]
