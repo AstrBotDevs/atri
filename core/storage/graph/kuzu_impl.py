@@ -1,7 +1,6 @@
 from typing import Iterable
-from .base import GraphNode, GraphEdge, GraphStore
+from .base import *  # noqa
 import kuzu
-import json
 import networkx as nx
 
 
@@ -15,103 +14,155 @@ class KuzuGraphStore(GraphStore):
     def _init_schema(self):
         self.conn.execute(
             (
-                "INSTALL json;"
-                "LOAD json;"
-                "CREATE NODE TABLE IF NOT EXISTS Node(id STRING, properties JSON, PRIMARY KEY(id));"
-                "CREATE REL TABLE IF NOT EXISTS Edge(FROM Node TO Node, properties JSON);"
+                "CREATE NODE TABLE IF NOT EXISTS PhaseNode(id STRING, ts TIMESTAMP, name STRING, type STRING, PRIMARY KEY(id));"
+                "CREATE NODE TABLE IF NOT EXISTS PassageNode(id STRING, ts TIMESTAMP, user_id STRING, PRIMARY KEY(id));"
+                "CREATE REL TABLE IF NOT EXISTS PassageEdge(FROM PhaseNode TO PassageNode, ts TIMESTAMP, relation_type STRING, user_id STRING);"
+                "CREATE REL TABLE IF NOT EXISTS PhaseEdge(FROM PhaseNode TO PhaseNode, ts TIMESTAMP, relation_type STRING, user_id STRING);"
             )
         )
 
-    def add_node(self, node: GraphNode) -> None:
-        prop_str = json.dumps(node.properties, ensure_ascii=False)
-        value = "{id: '" + node.id + "', properties: to_json(" + prop_str.replace("'", "''") + ")}"
-        query = "MERGE (n:Node " + value + ");"
+    def add_passage_node(self, node: PassageNode) -> None:
+        query = (
+            f"MERGE (:PassageNode {{id: '{node.id}', user_id: '{node.user_id}' ts: to_timestamp({node.ts})}});"
+        )
         print(query)
         self.conn.execute(query)
 
-    def add_edge(self, edge: GraphEdge) -> None:
-        prop_str = json.dumps(edge.properties, ensure_ascii=False)
+    def add_phase_node(self, node: PhaseNode) -> None:
+        query = f"MERGE (:PhaseNode {{id: '{node.id}', ts: to_timestamp({node.ts}), name: '{node.name}', type: '{node.type}'}});"
+        print(query)
+        self.conn.execute(query)
+
+    def add_passage_edge(self, edge: PassageEdge) -> None:
         query = f"""
-            MATCH (a:Node), (b:Node)
+            MATCH (a:PhaseNode), (b:PassageNode)
             WHERE a.id = '{edge.source}' AND b.id = '{edge.target}'
-            MERGE (a)-[:Edge {{properties: to_json('{prop_str.replace("'", "''")}')}}]->(b)
+            MERGE (a)-[:PassageEdge {{ts: to_timestamp({edge.ts}), relation_type: '{edge.relation_type}', user_id: '{edge.user_id}'}}]->(b)
         """
         print(query)
         self.conn.execute(query)
 
-    def find_node(self, filter: dict) -> str | None:
-        if "id" in filter:
-            result = self.conn.execute(
-                f"MATCH (n:Node) WHERE n.id = '{filter['id']}' RETURN n.id;"
-            )
-            return result.get_next()[0] if result.has_next() else None
-        return None
+    def add_phase_edge(self, edge: PhaseEdge) -> None:
+        query = f"""
+            MATCH (a:PhaseNode), (b:PhaseNode)
+            WHERE a.id = '{edge.source}' AND b.id = '{edge.target}'
+            MERGE (a)-[:PhaseEdge {{ts: to_timestamp({edge.ts}), relation_type: '{edge.relation_type}', fact_id: '{edge.fact_id}', user_id: '{edge.user_id}'}}]->(b)
+        """
+        print(query)
+        self.conn.execute(query)
 
-    def get_node(self, node_id: str) -> GraphNode:
+    def find_phase_node_by_name(self, name: str) -> str | None:
         result = self.conn.execute(
-            f"MATCH (n:Node) WHERE n.id = '{node_id}' RETURN n.id, n.properties;"
+            f"MATCH (n:PhaseNode) WHERE n.name = '{name}' RETURN n.id;"
         )
         if result.has_next():
-            id_val, prop_str = result.get_next()
-            return GraphNode(id=id_val, properties=json.loads(prop_str))
-        raise ValueError(f"Node '{node_id}' not found")
+            return result.get_next()[0]
+        return None
 
-    def get_edges(self, filter: dict = {}) -> Iterable[GraphEdge]:
+    def get_passage_nodes(self, filter: dict = {}) -> Iterable[PassageNode]:
         where_clause = ""
         if filter:
             clauses = []
             for k, v in filter.items():
-                clauses.append(f"JSON_EXTRACT(e.properties, '{k}') = '\"{v}\"'")
-            where_clause = "WHERE " + " AND ".join(clauses)
+                clauses.append(f"n.{k} = '{v}'")
+            if clauses:
+                where_clause = "WHERE " + " AND ".join(clauses)
+
+        query = f"MATCH (n:PassageNode) {where_clause} RETURN n.id, n.ts, n.user_id;"
+        print(query)
+        result = self.conn.execute(query)
+        while result.has_next():
+            id_val, ts, user_id = result.get_next()
+            yield PassageNode(id=id_val, ts=ts, user_id=user_id)
+
+    def get_phase_nodes(self, filter: dict = {}) -> Iterable[PhaseNode]:
+        where_clause = ""
+        if filter:
+            clauses = []
+            for k, v in filter.items():
+                clauses.append(f"n.{k} = '{v}'")
+            if clauses:
+                where_clause = "WHERE " + " AND ".join(clauses)
+
+        query = f"MATCH (n:PhaseNode) {where_clause} RETURN n.id, n.ts, n.name, n.type;"
+        print(query)
+        result = self.conn.execute(query)
+        while result.has_next():
+            id_val, ts, name, type_val = result.get_next()
+            yield PhaseNode(id=id_val, ts=ts, name=name, type=type_val)
+
+    def get_passage_edges(self, filter: dict = {}) -> Iterable[PassageEdge]:
+        where_clause = ""
+        if filter:
+            clauses = []
+            for k, v in filter.items():
+                if k in ["ts", "relation_type"]:
+                    clauses.append(f"e.{k} = '{v}'")
+                elif k == "source":
+                    clauses.append(f"a.id = '{v}'")
+                elif k == "target":
+                    clauses.append(f"b.id = '{v}'")
+            if clauses:
+                where_clause = "WHERE " + " AND ".join(clauses)
 
         query = f"""
-            MATCH (a:Node)-[e:Edge]->(b:Node)
+            MATCH (a:PhaseNode)-[e:PassageEdge]->(b:PassageNode)
             {where_clause}
-            RETURN a.id, b.id, e.properties;
+            RETURN a.id, b.id, e.ts, e.relation_type, e.user_id;
         """
         print(query)
         result = self.conn.execute(query)
         while result.has_next():
-            src, tgt, prop_str = result.get_next()
-            yield GraphEdge(source=src, target=tgt, properties=json.loads(prop_str))
-
-    def get_nodes(self, filter: dict = {}) -> Iterable[GraphNode]:
-        where_clause = ""
-        if filter:
-            clauses = []
-            for k, v in filter.items():
-                clauses.append(f"JSON_EXTRACT(n.properties, '{k}') = '\"{v}\"'")
-            where_clause = "WHERE " + " AND ".join(clauses)
-
-        query = f"MATCH (n:Node) {where_clause} RETURN n.id, n.properties;"
-        print(query)
-        result = self.conn.execute(query)
-        while result.has_next():
-            id_val, prop_str = result.get_next()
-            yield GraphNode(id=id_val, properties=json.loads(prop_str))
-
-    def get_nodes_by_edge_filter(
-        self, filter: dict = {}
-    ) -> Iterable[tuple[GraphNode, GraphNode]]:
-        where_clause = ""
-        if filter:
-            clauses = []
-            for k, v in filter.items():
-                clauses.append(f"JSON_EXTRACT(e.properties, '{k}') = '\"{v}\"'")
-            where_clause = "WHERE " + " AND ".join(clauses)
-
-        query = f"""
-            MATCH (a:Node)-[e:Edge]->(b:Node)
-            {where_clause}
-            RETURN a.id, a.properties, b.id, b.properties;
-        """
-        result = self.conn.execute(query)
-        while result.has_next():
-            a_id, a_props, b_id, b_props = result.get_next()
-            yield (
-                GraphNode(id=a_id, properties=json.loads(a_props)),
-                GraphNode(id=b_id, properties=json.loads(b_props)),
+            src, tgt, ts, rel_type, user_id = result.get_next()
+            yield PassageEdge(
+                source=src, target=tgt, ts=ts, relation_type=rel_type, user_id=user_id
             )
+
+    def get_phase_edges(self, filter: dict = {}) -> Iterable[PhaseEdge]:
+        where_clause = ""
+        if filter:
+            clauses = []
+            for k, v in filter.items():
+                if k in ["ts", "relation_type", "fact_id"]:
+                    clauses.append(f"e.{k} = '{v}'")
+                elif k == "source":
+                    clauses.append(f"a.id = '{v}'")
+                elif k == "target":
+                    clauses.append(f"b.id = '{v}'")
+            if clauses:
+                where_clause = "WHERE " + " AND ".join(clauses)
+
+        query = f"""
+            MATCH (a:PhaseNode)-[e:PhaseEdge]->(b:PhaseNode)
+            {where_clause}
+            RETURN a.id, b.id, e.ts, e.relation_type, e.fact_id, e.user_id;
+        """
+        print(query)
+        result = self.conn.execute(query)
+        while result.has_next():
+            src, tgt, ts, rel_type, fact_id, user_id = result.get_next()
+            yield PhaseEdge(
+                source=src,
+                target=tgt,
+                ts=ts,
+                relation_type=rel_type,
+                fact_id=fact_id,
+                user_id=user_id,
+            )
+
+    def get_phase_nodes_by_fact_id(
+        self, fact_id: str
+    ) -> Iterable[tuple[PhaseNode, PhaseNode]]:
+        query = f"""
+            MATCH (a:PhaseNode)-[e:PhaseEdge]->(b:PhaseNode)
+            WHERE e.fact_id = '{fact_id}'
+            RETURN a, b;
+        """
+        print(query)
+        result = self.conn.execute(query)
+        while result.has_next():
+            a, b = result.get_next()
+            yield (a, b)
 
     def save(self, path: str) -> None:
         # Kuzu automatically persists to disk; left for interface compatibility
@@ -124,22 +175,15 @@ class KuzuGraphStore(GraphStore):
     def run_ppr(
         self,
         personalization,
-        filter=None,
+        user_id,
         damping_factor=0.5,
         max_iter=100,
         tol=0.000001,
     ):
-        where_clause = ""
-        if filter:
-            clauses = []
-            for k, v in filter.items():
-                clauses.append(f"JSON_EXTRACT(u.properties, '{k}') = '\"{v}\"'")
-            where_clause = "WHERE " + " AND ".join(clauses)
-
         query = f"""
-            MATCH (u:Node)-[r:Edge]->(m:Node)
-            {where_clause}
-            RETURN u, r, m;
+        MATCH (u) -[e]->(v)
+        WHERE e.id = '{user_id}'
+        RETURN u, e, v;
         """
         result = self.conn.execute(query)
         G = result.get_as_networkx()

@@ -2,14 +2,13 @@ import numpy as np
 import uuid
 import time
 import logging
-import pickle
 from collections import defaultdict
 from astrbot.api.provider import Provider
 from ..util.prompts import EXTRACT_ENTITES_PROMPT, BUILD_RELATIONS_PROMPT
 from ..util.misc import parse_json
 from ..storage.vec_db import VecDB
 from ..provider.embedding import EmbeddingProvider
-from ..storage.graph.base import GraphStore, GraphEdge, GraphNode
+from ..storage.graph.base import *  # noqa
 from dataclasses import dataclass
 
 PASSAGE_NODE_TYPE = "passage"
@@ -75,11 +74,7 @@ class GraphMemory:
         #     ):
         #         return node
         # return None
-        return self.graph_store.find_node(
-            filter={
-                "node_type": PHASE_NODE_TYPE,
-            }
-        )
+        return self.graph_store.find_phase_node_by_name(entity_name)
 
     async def add_to_graph(
         self, text: str, user_id: str, group_id: str = None, username: str = None
@@ -124,13 +119,11 @@ class GraphMemory:
         # self.G.add_node(
         #     summary_id, node_type=PASSAGE_NODE_TYPE, summary=text, ts=timestamp
         # )
-        self.graph_store.add_node(
-            GraphNode(
+        self.graph_store.add_passage_node(
+            PassageNode(
                 id=summary_id,
-                properties={
-                    "ts": timestamp,
-                    "node_type": PASSAGE_NODE_TYPE,
-                },
+                ts=timestamp,
+                user_id=user_id
             )
         )
 
@@ -153,17 +146,12 @@ class GraphMemory:
             #     type=entity.type,
             #     ts=timestamp,
             # )
-            self.graph_store.add_node(
-                GraphNode(
+            self.graph_store.add_phase_node(
+                PhaseNode(
                     id=_node_id[entity_name],
-                    properties={
-                        "node_type": PHASE_NODE_TYPE,
-                        "name": entity_real_name,
-                        "user_id": user_id,
-                        "username": username,
-                        "type": entity.type,
-                        "ts": timestamp,
-                    },
+                    ts=timestamp,
+                    name=entity_real_name,
+                    type=entity.type,
                 )
             )
             # phase node - passage node
@@ -173,14 +161,13 @@ class GraphMemory:
             #     relation_type=PASSAGE_PHASE_RELATION_TYPE,
             #     ts=timestamp,
             # )
-            self.graph_store.add_edge(
-                GraphEdge(
+            self.graph_store.add_passage_edge(
+                PassageEdge(
                     source=summary_id,
                     target=_node_id[entity_name],
-                    properties={
-                        "relation_type": PASSAGE_PHASE_RELATION_TYPE,
-                        "ts": timestamp,
-                    },
+                    ts=timestamp,
+                    relation_type=PASSAGE_PHASE_RELATION_TYPE,
+                    user_id=user_id,
                 )
             )
         for relation in relations:
@@ -194,21 +181,24 @@ class GraphMemory:
             #     ts=timestamp,
             #     fact_id=fact_id,  # 将 fact ID 放在边上
             # )
-            self.graph_store.add_edge(
-                GraphEdge(
+            self.graph_store.add_phase_edge(
+                PhaseEdge(
                     source=_node_id[relation.source],
                     target=_node_id[relation.target],
-                    properties={
-                        "relation_type": relation.relation_type,
-                        "ts": timestamp,
-                        "fact_id": fact_id,
-                    },
+                    ts=timestamp,
+                    relation_type=relation.relation_type,
+                    fact_id=fact_id,
+                    user_id=user_id,
                 )
             )
             fact = f"{relation.source} {relation.relation_type} {relation.target}"
             _ = await self.vec_db.insert(
                 content=fact,
                 id=fact_id,
+                metadata={
+                    "user_id": user_id,
+                    "username": username,
+                },
             )
         await self.graph_store.save(self.file_path)
 
@@ -234,10 +224,8 @@ class GraphMemory:
         #             related_node_scores[edge[1]].append(result.similarity)
 
         for result in results:
-            for n1, n2 in self.graph_store.get_nodes_by_edge_filter(
-                filter={
-                    "fact_id": result.data["doc_id"],
-                }
+            for n1, n2 in self.graph_store.get_phase_nodes_by_fact_id(
+                fact_id=result.data["doc_id"]
             ):
                 related_node_scores[n1.id].append(result.similarity)
                 related_node_scores[n2.id].append(result.similarity)
@@ -268,13 +256,17 @@ class GraphMemory:
 
         ranked_docs = await self.run_ppr(
             personalization=personalization,
-            filter=filters,
+            user_id=filters.get("user_id", None), # TODO
         )
         ret = {}
         i = 0
         for doc_id, score in ranked_docs.items():
             # ret[id] = self.G.nodes[id].get("summary", None)
-            doc_data = await self.vec_db_summary.document_storage.get_document_by_doc_id(doc_id)
+            doc_data = (
+                await self.vec_db_summary.document_storage.get_document_by_doc_id(
+                    doc_id
+                )
+            )
             ret[doc_id] = doc_data.get("summary", None)
             i += 1
             if i >= num_to_retrieval:
@@ -285,7 +277,7 @@ class GraphMemory:
     async def run_ppr(
         self,
         personalization: dict[str, float],
-        filter: dict = None,
+        user_id: str,
         damping_factor: float = 0.5,
         max_iter: int = 100,
         tol: float = 1e-6,
@@ -301,7 +293,7 @@ class GraphMemory:
 
         ranked_scores = self.graph_store.run_ppr(
             personalization=personalization,
-            filter=filter,
+            user_id=user_id,
             damping_factor=damping_factor,
             max_iter=max_iter,
             tol=tol,
@@ -328,11 +320,7 @@ class GraphMemory:
         #         passage_node_ids.append(node)
         # return passage_node_ids
         passage_node_ids = []
-        for node in self.graph_store.get_nodes(
-            filter={
-                "node_type": PASSAGE_NODE_TYPE,
-            }
-        ):
+        for node in self.graph_store.get_passage_nodes():
             passage_node_ids.append(node.id)
         return passage_node_ids
 
