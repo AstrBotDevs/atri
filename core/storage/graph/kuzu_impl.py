@@ -17,25 +17,25 @@ class KuzuGraphStore(GraphStore):
             (
                 "INSTALL json;"
                 "LOAD json;"
-                "CREATE NODE TABLE IF NOT EXISTS Node(id STRING, properties STRING, PRIMARY KEY(id));"
-                "CREATE REL TABLE IF NOT EXISTS Edge(FROM Node TO Node, properties STRING);"
+                "CREATE NODE TABLE IF NOT EXISTS Node(id STRING, properties JSON, PRIMARY KEY(id));"
+                "CREATE REL TABLE IF NOT EXISTS Edge(FROM Node TO Node, properties JSON);"
             )
         )
 
     def add_node(self, node: GraphNode) -> None:
-        prop_str = json.dumps(node.properties)
+        prop_str = json.dumps(node.properties, ensure_ascii=False)
         query = f"""
             MERGE INTO Node(id, properties)
-            VALUES ('{node.id}', '{prop_str.replace("'", "''")}')
+            VALUES ('{node.id}', to_json('{prop_str.replace("'", "''")}'))
         """
         self.conn.execute(query)
 
     def add_edge(self, edge: GraphEdge) -> None:
-        prop_str = json.dumps(edge.properties)
+        prop_str = json.dumps(edge.properties, ensure_ascii=False)
         query = f"""
             MATCH (a:Node), (b:Node)
             WHERE a.id = '{edge.source}' AND b.id = '{edge.target}'
-            MERGE (a)-[:Edge {{properties: '{prop_str.replace("'", "''")}'}}]->(b)
+            MERGE (a)-[:Edge {{properties: to_json('{prop_str.replace("'", "''")}')}}]->(b)
         """
         self.conn.execute(query)
 
@@ -61,7 +61,7 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                val = json.dumps(v).replace("'", "''")
+                val = json.dumps(v, ensure_ascii=False).replace("'", "''")
                 clauses.append(f"JSON_EXTRACT(e.properties, '$.{k}') = '{val}'")
             where_clause = "WHERE " + " AND ".join(clauses)
 
@@ -80,7 +80,7 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                val = json.dumps(v).replace("'", "''")
+                val = json.dumps(v, ensure_ascii=False).replace("'", "''")
                 clauses.append(f"JSON_EXTRACT(n.properties, '$.{k}') = '{val}'")
             where_clause = "WHERE " + " AND ".join(clauses)
 
@@ -97,7 +97,7 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                val = json.dumps(v).replace("'", "''")
+                val = json.dumps(v, ensure_ascii=False).replace("'", "''")
                 clauses.append(f"JSON_EXTRACT(e.properties, '$.{k}') = '{val}'")
             where_clause = "WHERE " + " AND ".join(clauses)
 
@@ -134,7 +134,7 @@ class KuzuGraphStore(GraphStore):
         if filter:
             clauses = []
             for k, v in filter.items():
-                val = json.dumps(v).replace("'", "''")
+                val = json.dumps(v, ensure_ascii=False).replace("'", "''")
                 clauses.append(f"JSON_EXTRACT(e.properties, '$.{k}') = '{val}'")
             where_clause = "WHERE " + " AND ".join(clauses)
 
