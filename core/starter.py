@@ -1,6 +1,6 @@
 import os
 import logging
-from astrbot.api.provider import Provider
+from .provider.llm.openai_source import ProviderOpenAI
 from .provider.embedding.nomic_embed import NomicEmbeddingProvider
 from .storage.vec_db import VecDB
 from .storage.documents.document_storage import DocumentStorage
@@ -13,7 +13,7 @@ logger = logging.getLogger("astrbot")
 
 
 class ATRIMemoryStarter:
-    def __init__(self, data_dir_path: str, llm_provider: Provider):
+    def __init__(self, data_dir_path: str, llm_provider: ProviderOpenAI):
         self.data_dir_path = data_dir_path
         self.llm_provider = llm_provider
 

@@ -3,7 +3,7 @@ import uuid
 import time
 import logging
 from collections import defaultdict
-from astrbot.api.provider import Provider
+from ..provider.llm.openai_source import ProviderOpenAI
 from ..util.prompts import EXTRACT_ENTITES_PROMPT, BUILD_RELATIONS_PROMPT
 from ..util.misc import parse_json
 from ..storage.vec_db import VecDB
@@ -32,7 +32,7 @@ class Relation:
 class GraphMemory:
     def __init__(
         self,
-        provider: Provider,
+        provider: ProviderOpenAI,
         file_path: str = None,
         embedding_provider: EmbeddingProvider = None,
         vec_db: VecDB = None,
@@ -120,11 +120,7 @@ class GraphMemory:
         #     summary_id, node_type=PASSAGE_NODE_TYPE, summary=text, ts=timestamp
         # )
         self.graph_store.add_passage_node(
-            PassageNode(
-                id=summary_id,
-                ts=timestamp,
-                user_id=user_id
-            )
+            PassageNode(id=summary_id, ts=timestamp, user_id=user_id)
         )
 
         # Add the phase nodes
@@ -146,14 +142,14 @@ class GraphMemory:
             #     type=entity.type,
             #     ts=timestamp,
             # )
-            self.graph_store.add_phase_node(
-                PhaseNode(
-                    id=_node_id[entity_name],
-                    ts=timestamp,
-                    name=entity_real_name,
-                    type=entity.type,
+                self.graph_store.add_phase_node(
+                    PhaseNode(
+                        id=_node_id[entity_name],
+                        ts=timestamp,
+                        name=entity_real_name,
+                        type=entity.type,
+                    )
                 )
-            )
             # phase node - passage node
             # self.G.add_edge(
             #     summary_id,
@@ -201,7 +197,7 @@ class GraphMemory:
                     "username": username,
                 },
             )
-        await self.graph_store.save(self.file_path)
+        self.graph_store.save(self.file_path)
 
     async def search_graph(
         self, query: str, num_to_retrieval: int = 5, filters: dict = None
@@ -257,7 +253,7 @@ class GraphMemory:
 
         ranked_docs = await self.run_ppr(
             personalization=personalization,
-            user_id=filters.get("user_id", None), # TODO
+            user_id=filters.get("user_id", None),  # TODO
         )
         ret = {}
         i = 0
@@ -302,7 +298,10 @@ class GraphMemory:
 
         passage_node_ids = await self._get_passage_node_ids()
 
-        doc_scores = np.array([[id, ranked_scores[id]] for id in passage_node_ids])
+        print("AFTER PPR: ranked_scores", ranked_scores)
+        print("AFTER PPR: passage_node_ids", passage_node_ids)
+
+        doc_scores = np.array([[id, ranked_scores[id]] for id in passage_node_ids if id in ranked_scores])
         self.logger.info(f"Doc scores: {doc_scores}")
         if len(doc_scores) > 0:
             doc_scores = doc_scores[doc_scores[:, 1].argsort()[::-1]]
@@ -313,7 +312,7 @@ class GraphMemory:
 
         return ranked_docs
 
-    async def _get_passage_node_ids(self) -> list[str]:
+    async def _get_passage_node_ids(self, user_id: str = None) -> list[str]:
         """获取所有 passage node 的 ID"""
         # passage_node_ids = []
         # for node, data in self.G.nodes(data=True):
@@ -321,7 +320,10 @@ class GraphMemory:
         #         passage_node_ids.append(node)
         # return passage_node_ids
         passage_node_ids = []
-        for node in self.graph_store.get_passage_nodes():
+        filter = {}
+        if user_id:
+            filter["user_id"] = user_id
+        for node in self.graph_store.get_passage_nodes(filter=filter):
             passage_node_ids.append(node.id)
         return passage_node_ids
 

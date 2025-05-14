@@ -22,7 +22,7 @@ class KuzuGraphStore(GraphStore):
         )
 
     def add_passage_node(self, node: PassageNode) -> None:
-        query = f"MERGE (:PassageNode {{id: '{node.id}', user_id: '{node.user_id}' ts: to_timestamp({node.ts})}});"
+        query = f"MERGE (:PassageNode {{id: '{node.id}', user_id: '{node.user_id}', ts: to_timestamp({node.ts})}});"
         print(query)
         self.conn.execute(query)
 
@@ -189,7 +189,7 @@ class KuzuGraphStore(GraphStore):
         for node_id, data in nodes:
             id = data.get("id")
             new_personalization[node_id] = personalization.get(id, 0.0)
-        print("Graph Metadata:", G.nodes(data=True), G.edges(data=True))
+        print("Personalization:", new_personalization)
         ranked_scores: dict[str, float] = nx.pagerank(
             G,
             alpha=damping_factor,
