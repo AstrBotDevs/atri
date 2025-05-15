@@ -60,7 +60,7 @@ class ATRIMemoryStarter:
         )
 
         # graph store
-        kuzu_graph_store = KuzuGraphStore(
+        self.kuzu_graph_store = KuzuGraphStore(
             db_path=self.mem_graph_path,
         )
 
@@ -72,6 +72,6 @@ class ATRIMemoryStarter:
             embedding_provider=self.embedding_model,
             vec_db=self.fact_vec_db,
             vec_db_summary=self.summary_vec_db,
-            graph_store=kuzu_graph_store,
+            graph_store=self.kuzu_graph_store,
         )
         logger.info("Graph memory initialized successfully.")

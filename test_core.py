@@ -60,6 +60,13 @@ Assistant: 我懂了，下次我们可以一起推公式、练证明，不是背
                 group_id=None,
                 username=atri_user_name,
             )
+        # --- test edges ---
+        ret = s.kuzu_graph_store.get_passage_edges(filter={
+            "user_id": atri_user_id,
+        })
+        ret_ls = list(ret)
+        print(f"Passage Edges: {ret_ls}")
+        assert len(ret_ls) > 0
 
         # --- Search Graph Memory ---
         filters = {

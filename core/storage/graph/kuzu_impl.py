@@ -178,7 +178,7 @@ class KuzuGraphStore(GraphStore):
         tol=0.000001,
     ):
         query = f"""
-        MATCH (u) -[e]->(v)
+        MATCH (u) -[e]-> (v)
         WHERE e.user_id = '{user_id}'
         RETURN u, e, v;
         """
@@ -189,6 +189,7 @@ class KuzuGraphStore(GraphStore):
         for node_id, data in nodes:
             id = data.get("id")
             new_personalization[node_id] = personalization.get(id, 0.0)
+        print("Graph Metadata:", G.nodes(data=True), G.edges(data=True))
         print("Personalization:", new_personalization)
         ranked_scores: dict[str, float] = nx.pagerank(
             G,
@@ -197,4 +198,9 @@ class KuzuGraphStore(GraphStore):
             max_iter=max_iter,
             tol=tol,
         )
-        return ranked_scores
+        # ranked_scores = dict
+        m = {}
+        for k, v in ranked_scores.items():
+            m[G.nodes[k]["id"]] = v
+        m = dict(sorted(m.items(), key=lambda item: item[1], reverse=True))
+        return m

@@ -159,8 +159,8 @@ class GraphMemory:
             # )
             self.graph_store.add_passage_edge(
                 PassageEdge(
-                    source=summary_id,
-                    target=_node_id[entity_name],
+                    source=_node_id[entity_name],
+                    target=summary_id,
                     ts=timestamp,
                     relation_type=PASSAGE_PHASE_RELATION_TYPE,
                     summary_id=summary_id,
@@ -296,36 +296,40 @@ class GraphMemory:
             tol=tol,
         )
 
-        passage_node_ids = await self._get_passage_node_ids()
+        passage_nodes = await self._get_passage_nodes()
 
         print("AFTER PPR: ranked_scores", ranked_scores)
-        print("AFTER PPR: passage_node_ids", passage_node_ids)
+        # print("AFTER PPR: passage_node_ids", passage_node_ids)
+        # doc_scores = np.array([[id, ranked_scores[id]] for id in passage_node_ids if id in ranked_scores])
+        # self.logger.info(f"Doc scores: {doc_scores}")
+        # if len(doc_scores) > 0:
+        #     doc_scores = doc_scores[doc_scores[:, 1].argsort()[::-1]]
+        #     ranked_docs = {id: score for id, score in doc_scores}  # noqa
 
-        doc_scores = np.array([[id, ranked_scores[id]] for id in passage_node_ids if id in ranked_scores])
-        self.logger.info(f"Doc scores: {doc_scores}")
-        if len(doc_scores) > 0:
-            doc_scores = doc_scores[doc_scores[:, 1].argsort()[::-1]]
-            ranked_docs = {id: score for id, score in doc_scores}  # noqa
+        ranked_docs = {}
+        for node_id, score in ranked_scores.items():
+            if node_id in passage_nodes:
+                ranked_docs[node_id] = (passage_nodes[node_id], score)
 
-        self.logger.info(f"PageRank scores: {ranked_docs}")
-        self.logger.info(f"Passage node IDs: {passage_node_ids}")
-
+        self.logger.info(f"Ranked doc nodes: {ranked_docs}")
+        # {id: (passage_node, score)}
         return ranked_docs
 
-    async def _get_passage_node_ids(self, user_id: str = None) -> list[str]:
+    async def _get_passage_nodes(self, user_id: str = None) -> dict[str, PassageNode]:
         """获取所有 passage node 的 ID"""
         # passage_node_ids = []
         # for node, data in self.G.nodes(data=True):
         #     if data.get("node_type") == PASSAGE_NODE_TYPE:
         #         passage_node_ids.append(node)
         # return passage_node_ids
-        passage_node_ids = []
+        # passage_node_ids = []
+        ret = {}
         filter = {}
         if user_id:
             filter["user_id"] = user_id
         for node in self.graph_store.get_passage_nodes(filter=filter):
-            passage_node_ids.append(node.id)
-        return passage_node_ids
+            ret[node.id] = node
+        return ret
 
     async def get_entities(self, text: str) -> list[Entity]:
         """从文本中获取实体"""
