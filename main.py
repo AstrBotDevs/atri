@@ -15,7 +15,7 @@ class ATRIPlugin(Star):
         super().__init__(context)
         self.user_counter = defaultdict(int)
         # 阈值
-        self.sum_threshold = 3
+        self.sum_threshold = 10
         self.dialogs = defaultdict(list)  # umo -> history
 
     @filter.on_astrbot_loaded()
