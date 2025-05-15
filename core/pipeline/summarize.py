@@ -1,5 +1,6 @@
-import typing as T
-from astrbot.api.provider import Provider
+# from astrbot.api.provider import Provider
+import datetime
+from ..provider.llm.openai_source import ProviderOpenAI
 from ..util.prompts import SUMMARIZE_PROMPT
 from dataclasses import dataclass
 
@@ -12,23 +13,19 @@ class Summarization:
 class Summarize:
     """对对话进行总结"""
 
-    def __init__(self, provider: Provider):
+    def __init__(self, provider: ProviderOpenAI):
         self.provider = provider
 
-    async def summarize(self, context: T.List[T.Dict]) -> str:
-        """Summarize the given text using the provider."""
+    async def summarize(self, context: str) -> str:
+        """Summarize the given context using the provider."""
+        # logger.debug(f"Summarizing - {context}")
+        sys_prompt = (
+            SUMMARIZE_PROMPT
+            + "\nCurrent time: "
+            + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
         summarize_res = await self.provider.text_chat(
-            system_prompt=SUMMARIZE_PROMPT,
-            prompt=await self.assemble_context(context),
+            system_prompt=sys_prompt,
+            prompt=context,
         )
         return summarize_res.completion_text
-
-    async def assemble_context(self, context: T.List[T.Dict]) -> str:
-        """Assemble the context into a single string."""
-        # TODO: 适配群聊多用户的场景。
-        ret = ""
-        for item in context:
-            if item["role"] == "user" and "content" in item:
-                ret += f"User: {item['content']}\n"
-            elif item["role"] == "assistant" and "content" in item:
-                ret += f"Assistant: {item['content']}\n"

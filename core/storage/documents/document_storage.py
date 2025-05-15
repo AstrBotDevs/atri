@@ -1,6 +1,6 @@
 import aiosqlite
 import os
-
+from loguru import logger
 
 class DocumentStorage:
     def __init__(self, db_path: str):
@@ -26,22 +26,36 @@ class DocumentStorage:
         """Connect to the SQLite database."""
         self.connection = await aiosqlite.connect(self.db_path)
 
-    async def get_document(self, id: int):
-        """Retrieve a document by its ID.
+    async def get_documents(self, metadata_filters: dict, ids: list = None):
+        """Retrieve documents by metadata filters and ids.
 
         Args:
-            id (int): The ID to retrieve.
+            metadata_filters (dict): The metadata filters to apply.
 
         Returns:
-            dict: The document data.
+            list: The list of document IDs(primary key, not doc_id) that match the filters.
         """
+        # metadata filter -> SQL WHERE clause
+        where_clauses = []
+        values = []
+        for key, val in metadata_filters.items():
+            where_clauses.append(f"json_extract(metadata, '$.{key}') = ?")
+            values.append(val)
+        if ids is not None and len(ids) > 0:
+            ids = [str(i) for i in ids if i != -1]
+            where_clauses.append("id IN ({})".format(",".join("?" * len(ids))))
+            values.extend(ids)
+        where_sql = " AND ".join(where_clauses) or "1=1"
+
+        result = []
         async with self.connection.cursor() as cursor:
-            await cursor.execute("SELECT * FROM documents WHERE id = ?", (str(id),))
-            row = await cursor.fetchone()
-            if row:
-                return await self.tuple_to_dict(row)
-            else:
-                return None
+            sql = "SELECT * FROM documents WHERE " + where_sql
+            logger.debug(f"DocDB Query SQL -> {sql} (values: {values})")
+            await cursor.execute(sql, values)
+            for row in await cursor.fetchall():
+                result.append(await self.tuple_to_dict(row))
+        return result
+
 
     async def get_document_by_doc_id(self, doc_id: str):
         """Retrieve a document by its doc_id.
@@ -73,7 +87,7 @@ class DocumentStorage:
             "id": row[0],
             "doc_id": row[1],
             "text": row[2],
-            "meta": row[3],
+            "metadata": row[3],
             "created_at": row[4],
             "updated_at": row[5],
         }

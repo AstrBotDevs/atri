@@ -1,7 +1,11 @@
-import json
 from astrbot.api import logger
 from astrbot.api.provider import ProviderRequest
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult  # noqa
+from astrbot.api.event import (
+    filter,
+    AstrMessageEvent,
+    MessageEventResult,
+    ResultContentType,
+)  # noqa
 from astrbot.api.star import Context, Star, register, StarTools
 from astrbot.api import logger  # noqa
 from .core.starter import ATRIMemoryStarter
@@ -17,6 +21,7 @@ class ATRIPlugin(Star):
         self.user_counter = defaultdict(int)
         # 阈值
         self.sum_threshold = 10
+        self.dialogs = defaultdict(list)  # umo -> history
 
     @filter.on_astrbot_loaded()
     async def on_astrbot_loaded(self):
@@ -28,35 +33,74 @@ class ATRIPlugin(Star):
         await self.memory_layer.initialize()
 
     @filter.on_llm_request()
-    async def requesting(self, event: MessageEventResult, req: ProviderRequest):
+    async def requesting(self, event: AstrMessageEvent, req: ProviderRequest):
         """处理请求事件"""
-        results = await self.memory_layer.graph_memory.search_graph(req.prompt)
+        filters = {
+            "user_id": str(event.get_sender_id()),
+        }
+        if event.get_group_id():
+            filters["group_id"] = str(event.get_group_id())
+        results = await self.memory_layer.graph_memory.search_graph(
+            req.prompt,
+            num_to_retrieval=5,
+            filters=filters,
+        )
         if results:
             req.system_prompt += (
                 "\n\nHere are related memories between you and user:\n" + str(results)
             )
 
-    @filter.after_message_sent()
+    def parse_identifier(self, event: AstrMessageEvent):
+        name = event.get_sender_name()
+        user_id = event.get_sender_id()
+        if name == user_id:
+            return name
+        elif not name:
+            return user_id
+        else:
+            return name
+
+    # @filter.after_message_sent()
+    @filter.event_message_type(filter.EventMessageType.ALL)
     async def after_message(self, event: AstrMessageEvent):
         """处理消息事件"""
+        if not event.message_str:  # TODO: 处理多模态信息
+            return
+        # result = event.get_result()
+        # TODO: streaming result?
+        # if not result or result.result_content_type != ResultContentType.LLM_RESULT:
+        #     return
         uid = event.unified_msg_origin
+        identifier = self.parse_identifier(event)
+        message = event.message_str.replace("\n", " ")
+        self.dialogs[uid].append(f"User({identifier}): {message}")
+        # self.dialogs[uid].append(f"Me: {result.get_plain_text()}")
+
         self.user_counter[uid] += 1
         if self.user_counter[uid] >= self.sum_threshold:
-            cid = await self.context.conversation_manager.get_curr_conversation_id(uid)
-            conv = await self.context.conversation_manager.get_conversation(uid, cid)
             logger.info(
                 f"User {uid} has sent {self.user_counter[uid]} messages. Summarizing conversation."
             )
             self.user_counter[uid] = 0
-            text = await self.memory_layer.summarizer.summarize(
-                json.loads(conv.history)
-            )
+            dialog = self.dialogs[uid]
+            dialog_str = "\n".join(dialog)
+            text = await self.memory_layer.summarizer.summarize(dialog_str)
+            logger.debug(f"Summarized text: {text}")
+            if "%None%" in text.strip():
+                logger.info("没有符合总结的内容，跳过这轮总结。")
+                self.dialogs[uid].clear()
+                return
+            elif "%Hold%" in text.strip():
+                logger.info("对话话题不完整，继续观察。")
+                return
             await self.memory_layer.graph_memory.add_to_graph(
                 text=text,
                 user_id=str(event.get_sender_id()),
-                username=event.get_sender_name()
+                group_id=str(event.get_group_id()),
+                username=event.get_sender_name(),
             )
             logger.info("Added to graph.")
+            self.dialogs[uid].clear()
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""

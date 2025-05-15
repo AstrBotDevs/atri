@@ -1,0 +1,7 @@
+aiosqlite>=0.21.0
+faiss-cpu==1.10.0
+networkx>=3.4.2
+nomic[local]>=3.4.1
+numpy>=2.2.4
+kuzu>=0.10.0
+scipy
