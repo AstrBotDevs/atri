@@ -23,12 +23,10 @@ class KuzuGraphStore(GraphStore):
 
     def add_passage_node(self, node: PassageNode) -> None:
         query = f"MERGE (:PassageNode {{id: '{node.id}', user_id: '{node.user_id}', ts: to_timestamp({node.ts})}});"
-        print(query)
         self.conn.execute(query)
 
     def add_phase_node(self, node: PhaseNode) -> None:
         query = f"MERGE (:PhaseNode {{id: '{node.id}', ts: to_timestamp({node.ts}), name: '{node.name}', type: '{node.type}'}});"
-        print(query)
         self.conn.execute(query)
 
     def add_passage_edge(self, edge: PassageEdge) -> None:
@@ -37,7 +35,6 @@ class KuzuGraphStore(GraphStore):
             WHERE a.id = '{edge.source}' AND b.id = '{edge.target}'
             MERGE (a)-[:PassageEdge {{ts: to_timestamp({edge.ts}), relation_type: '{edge.relation_type}', summary_id: '{edge.summary_id}', user_id: '{edge.user_id}'}}]->(b)
         """
-        print(query)
         self.conn.execute(query)
 
     def add_phase_edge(self, edge: PhaseEdge) -> None:
@@ -46,7 +43,6 @@ class KuzuGraphStore(GraphStore):
             WHERE a.id = '{edge.source}' AND b.id = '{edge.target}'
             MERGE (a)-[:PhaseEdge {{ts: to_timestamp({edge.ts}), relation_type: '{edge.relation_type}', fact_id: '{edge.fact_id}', user_id: '{edge.user_id}'}}]->(b)
         """
-        print(query)
         self.conn.execute(query)
 
     def find_phase_node_by_name(self, name: str) -> str | None:
@@ -67,7 +63,6 @@ class KuzuGraphStore(GraphStore):
                 where_clause = "WHERE " + " AND ".join(clauses)
 
         query = f"MATCH (n:PassageNode) {where_clause} RETURN n.id, n.ts, n.user_id;"
-        print(query)
         result = self.conn.execute(query)
         while result.has_next():
             id_val, ts, user_id = result.get_next()
@@ -83,7 +78,6 @@ class KuzuGraphStore(GraphStore):
                 where_clause = "WHERE " + " AND ".join(clauses)
 
         query = f"MATCH (n:PhaseNode) {where_clause} RETURN n.id, n.ts, n.name, n.type;"
-        print(query)
         result = self.conn.execute(query)
         while result.has_next():
             id_val, ts, name, type_val = result.get_next()
@@ -103,7 +97,6 @@ class KuzuGraphStore(GraphStore):
             {where_clause}
             RETURN a.id, b.id, e.ts, e.relation_type, e.summary_id, e.user_id;
         """
-        print(query)
         result = self.conn.execute(query)
         while result.has_next():
             src, tgt, ts, rel_type, summary_id, user_id = result.get_next()
@@ -130,7 +123,6 @@ class KuzuGraphStore(GraphStore):
             {where_clause}
             RETURN a.id, b.id, e.ts, e.relation_type, e.fact_id, e.user_id;
         """
-        print(query)
         result = self.conn.execute(query)
         while result.has_next():
             src, tgt, ts, rel_type, fact_id, user_id = result.get_next()
@@ -151,7 +143,6 @@ class KuzuGraphStore(GraphStore):
             WHERE e.fact_id = '{fact_id}'
             RETURN a, b;
         """
-        print(query)
         result = self.conn.execute(query)
         while result.has_next():
             a, b = result.get_next()
@@ -189,8 +180,8 @@ class KuzuGraphStore(GraphStore):
         for node_id, data in nodes:
             id = data.get("id")
             new_personalization[node_id] = personalization.get(id, 0.0)
-        print("Graph Metadata:", G.nodes(data=True), G.edges(data=True))
-        print("Personalization:", new_personalization)
+        # print("Graph Metadata:", G.nodes(data=True), G.edges(data=True))
+        # print("Personalization:", new_personalization)
         ranked_scores: dict[str, float] = nx.pagerank(
             G,
             alpha=damping_factor,

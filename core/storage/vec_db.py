@@ -13,16 +13,10 @@ class Result:
     similarity: float
     data: dict
 
-
-def l2_to_similarity(distances: np.ndarray) -> np.ndarray:
-    """
-    Convert L2 distances to similarity scores using min-max normalization.
-    Higher score = more similar.
-    """
-    d = distances[0]  # if distances shape is (1, k), extract row
-    d_norm = (d - d.min()) / (d.max() - d.min() + 1e-8)  # avoid divide by zero
-    return 1.0 - d_norm
-
+def l2_to_similarity_softmax(l2_scores):
+    neg_scores = -np.array(l2_scores)
+    exp_scores = np.exp(neg_scores - np.max(neg_scores))  # 防止溢出
+    return exp_scores / np.sum(exp_scores)
 
 def uuid_to_int(uuid_str: str) -> int:
     """将UUID字符串转换为64位整数（只使用UUID的一部分）"""
@@ -97,8 +91,11 @@ class VecDB:
         # TODO: rerank
         if len(indices[0]) == 0 or indices[0][0] == -1:
             return []
+        # normalize scores
+        logger.debug(f"before similarity: {scores} indices: {indices}")
+        scores[0] = l2_to_similarity_softmax(scores[0])
         logger.debug(f"retrieval from faiss: SIMILARITY {scores} INDICES {indices}")
-        # maybe the size is less than k.
+        # NOTE: maybe the size is less than k.
         fetched_docs = await self.document_storage.get_documents(
             metadata_filters=metadata_filters or {}, ids=indices[0]
         )

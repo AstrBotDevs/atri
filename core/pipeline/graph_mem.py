@@ -208,7 +208,7 @@ class GraphMemory:
             k=5,
             metadata_filters=filters,
         )
-        self.logger.info(f"Search Fact results: {results}")
+        print(f"Search Fact results: {results}")
         # 通过 ID 获取边，进而得到所有实体
         final_related_node_score: dict[str, float] = {}
         related_node_scores = defaultdict(list[float])
@@ -255,21 +255,21 @@ class GraphMemory:
             personalization=personalization,
             user_id=filters.get("user_id", None),  # TODO
         )
-        # ret = {}
-        # i = 0
-        # for doc_id, score in ranked_docs.items():
-        #     # ret[id] = self.G.nodes[id].get("summary", None)
-        #     doc_data = (
-        #         await self.vec_db_summary.document_storage.get_document_by_doc_id(
-        #             doc_id
-        #         )
-        #     )
-        #     ret[doc_id] = doc_data.get("summary", None)
-        #     i += 1
-        #     if i >= num_to_retrieval:
-        #         break
-        # self.logger.info(f"Ranked passage nodes: {ret}")
-        return ranked_docs
+        ret = {}
+        i = 0
+        for doc_id, score in ranked_docs.items():
+            # ret[id] = self.G.nodes[id].get("summary", None)
+            doc_data = (
+                await self.vec_db_summary.document_storage.get_document_by_doc_id(
+                    doc_id
+                )
+            )
+            ret[doc_id] = doc_data.get("text", None)
+            i += 1
+            if i >= num_to_retrieval:
+                break
+        self.logger.info(f"Ranked passage nodes: {ret}")
+        return ret
 
     async def run_ppr(
         self,
@@ -300,6 +300,7 @@ class GraphMemory:
 
         print("AFTER PPR: ranked_scores", ranked_scores)
         # print("AFTER PPR: passage_node_ids", passage_node_ids)
+
         # doc_scores = np.array([[id, ranked_scores[id]] for id in passage_node_ids if id in ranked_scores])
         # self.logger.info(f"Doc scores: {doc_scores}")
         # if len(doc_scores) > 0:
@@ -309,7 +310,7 @@ class GraphMemory:
         ranked_docs = {}
         for node_id, score in ranked_scores.items():
             if node_id in passage_nodes:
-                ranked_docs[node_id] = (passage_nodes[node_id], score)
+                ranked_docs[node_id] = score
 
         self.logger.info(f"Ranked doc nodes: {ranked_docs}")
         # {id: (passage_node, score)}
