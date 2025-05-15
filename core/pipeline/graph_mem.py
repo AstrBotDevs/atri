@@ -255,21 +255,21 @@ class GraphMemory:
             personalization=personalization,
             user_id=filters.get("user_id", None),  # TODO
         )
-        ret = {}
-        i = 0
-        for doc_id, score in ranked_docs.items():
-            # ret[id] = self.G.nodes[id].get("summary", None)
-            doc_data = (
-                await self.vec_db_summary.document_storage.get_document_by_doc_id(
-                    doc_id
-                )
-            )
-            ret[doc_id] = doc_data.get("summary", None)
-            i += 1
-            if i >= num_to_retrieval:
-                break
-        self.logger.info(f"Ranked passage nodes: {ret}")
-        return ret
+        # ret = {}
+        # i = 0
+        # for doc_id, score in ranked_docs.items():
+        #     # ret[id] = self.G.nodes[id].get("summary", None)
+        #     doc_data = (
+        #         await self.vec_db_summary.document_storage.get_document_by_doc_id(
+        #             doc_id
+        #         )
+        #     )
+        #     ret[doc_id] = doc_data.get("summary", None)
+        #     i += 1
+        #     if i >= num_to_retrieval:
+        #         break
+        # self.logger.info(f"Ranked passage nodes: {ret}")
+        return ranked_docs
 
     async def run_ppr(
         self,
