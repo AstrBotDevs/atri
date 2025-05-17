@@ -195,3 +195,17 @@ class KuzuGraphStore(GraphStore):
             m[G.nodes[k]["id"]] = v
         m = dict(sorted(m.items(), key=lambda item: item[1], reverse=True))
         return m
+
+    def get_graph_networkx(self):
+        query = """
+        MATCH (a) -[e]-> (b)
+        RETURN a, e, b;
+        """
+        result = self.conn.execute(query)
+        G = result.get_as_networkx()
+        nodes = list(G.nodes(data=True))
+        edges = list(G.edges(data=True))
+        return GraphResult(
+            nodes=nodes,
+            edges=edges,
+        )

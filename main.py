@@ -8,6 +8,7 @@ from astrbot.api.event import (
 )  # noqa
 from astrbot.api.star import Context, Star, register, StarTools
 from astrbot.api import logger  # noqa
+from astrbot.dashboard.server import Response
 from .core.starter import ATRIMemoryStarter
 from collections import defaultdict
 
@@ -22,6 +23,11 @@ class ATRIPlugin(Star):
         # 阈值
         self.sum_threshold = 10
         self.dialogs = defaultdict(list)  # umo -> history
+        self.context.register_web_api("/alkaid/ltm/graph", self.api_get_graph, ["GET"], "获取记忆图数据")
+
+    async def api_get_graph(self):
+        result = await self.memory_layer.graph_memory.get_graph()
+        return Response().ok(data=result).__dict__
 
     @filter.on_astrbot_loaded()
     async def on_astrbot_loaded(self):
@@ -31,6 +37,7 @@ class ATRIPlugin(Star):
             llm_provider=self.llm_provider,
         )
         await self.memory_layer.initialize()
+
 
     @filter.on_llm_request()
     async def requesting(self, event: AstrMessageEvent, req: ProviderRequest):

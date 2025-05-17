@@ -378,3 +378,8 @@ class GraphMemory:
                 )
             )
         return relations
+
+    async def get_graph(self) -> GraphResult:
+        """获取图谱"""
+        # return self.G
+        return self.graph_store.get_graph_networkx()

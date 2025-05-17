@@ -1,4 +1,4 @@
-from typing import Protocol, Iterable
+from typing import Protocol, Iterable, TypedDict
 from dataclasses import dataclass
 
 
@@ -41,6 +41,10 @@ class PassageEdge(BaseEdge):
 class PhaseEdge(BaseEdge):
     fact_id: str
     """Fact ID"""
+    
+class GraphResult(TypedDict):
+    nodes: list
+    edges: list
 
 
 class GraphStore(Protocol):
@@ -75,3 +79,7 @@ class GraphStore(Protocol):
             tol (float): 收敛容忍度，表示当 PageRank 分数的变化小于该值时停止迭代。
         """
         ...
+    def get_graph_networkx(self) -> GraphResult:
+        """获取图的 NetworkX 表示"""
+        ...
+    
