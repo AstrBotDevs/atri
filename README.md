@@ -2,6 +2,9 @@
 
 一个基于图搜索、向量化语义检索和认知科学的记忆模块。
 
+> [!WARNING]
+> 🚧 The repo is under construction, do not use in production 🚧
+
 ## Road Map
 
 - [x] 选型
