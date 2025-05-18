@@ -27,6 +27,7 @@ class Relation:
     source: str
     target: str
     relation_type: str
+    fact: str
 
 
 class GraphMemory:
@@ -47,19 +48,9 @@ class GraphMemory:
         self.vec_db = vec_db  # 用于存储 Fact 的 VecDB
         self.vec_db_summary = vec_db_summary  # 用于存储摘要的 VecDB
         self.graph_store = graph_store
-        # if file_path and os.path.exists(file_path):
-        #     self.load_graph(file_path)
-        # else:
-        #     self.G = nx.Graph()
 
         self.logger = logger or logging.getLogger("astrbot")
 
-    # def load_graph(self, file_path: str) -> None:
-    #     """从文件加载图"""
-    #     with open(file_path, "rb") as f:
-    #         self.G = pickle.load(f)
-    #     if not isinstance(self.G, nx.Graph):
-    #         raise ValueError(f"File {file_path} is not a valid graph file.")
 
     async def get_phase_node(self, entity_name: str) -> str | None:
         """查找是否有对应的 Phase 节点
@@ -89,12 +80,14 @@ class GraphMemory:
             username = user_id
 
         entities = await self.get_entities(text)
+        print(f"Entities: {entities}")
 
         if not entities:
             self.logger.info(f"对于`{text}`，没有检出任何 entities ")
             return
 
         relations = await self.build_relations(entities, text)
+        print(f"Relations: {relations}")
 
         if not relations:
             self.logger.info(f"对于`{text}` `{entities}`，没有检出任何 relations ")
@@ -116,9 +109,6 @@ class GraphMemory:
             metadata=metadata,
             id=summary_id,  # doc_id
         )
-        # self.G.add_node(
-        #     summary_id, node_type=PASSAGE_NODE_TYPE, summary=text, ts=timestamp
-        # )
         self.graph_store.add_passage_node(
             PassageNode(id=summary_id, ts=timestamp, user_id=user_id)
         )
@@ -133,15 +123,6 @@ class GraphMemory:
                 _node_id[entity_name] = node
             else:
                 _node_id[entity_name] = str(uuid.uuid4())
-            # self.G.add_node(
-            #     _node_id[entity_name],
-            #     node_type=PHASE_NODE_TYPE,
-            #     name=entity_real_name,
-            #     user_id=user_id,
-            #     username=username,
-            #     type=entity.type,
-            #     ts=timestamp,
-            # )
                 self.graph_store.add_phase_node(
                     PhaseNode(
                         id=_node_id[entity_name],
@@ -150,13 +131,6 @@ class GraphMemory:
                         type=entity.type,
                     )
                 )
-            # phase node - passage node
-            # self.G.add_edge(
-            #     summary_id,
-            #     _node_id[entity_name],
-            #     relation_type=PASSAGE_PHASE_RELATION_TYPE,
-            #     ts=timestamp,
-            # )
             self.graph_store.add_passage_edge(
                 PassageEdge(
                     source=_node_id[entity_name],
@@ -171,13 +145,6 @@ class GraphMemory:
             fact_id = str(uuid.uuid4())
             if relation.source not in _node_id or relation.target not in _node_id:
                 continue
-            # self.G.add_edge(
-            #     _node_id[relation.source],  # entity_uuid
-            #     _node_id[relation.target],  # entity_uuid
-            #     relation_type=relation.relation_type,
-            #     ts=timestamp,
-            #     fact_id=fact_id,  # 将 fact ID 放在边上
-            # )
             self.graph_store.add_phase_edge(
                 PhaseEdge(
                     source=_node_id[relation.source],
@@ -188,7 +155,11 @@ class GraphMemory:
                     user_id=user_id,
                 )
             )
-            fact = f"{relation.source} {relation.relation_type} {relation.target}"
+            # fact = f"{relation.source} {relation.relation_type} {relation.target}"
+            if relation.fact:
+                fact = relation.fact
+            else:
+                fact = f"{relation.source} {relation.relation_type} {relation.target}"
             _ = await self.vec_db.insert(
                 content=fact,
                 id=fact_id,
@@ -213,13 +184,6 @@ class GraphMemory:
         final_related_node_score: dict[str, float] = {}
         related_node_scores = defaultdict(list[float])
 
-        # edges = self.G.edges(data=True)
-        # for result in results:
-        #     for edge in edges:
-        #         if edge[2].get("fact_id") == result.data["doc_id"]:
-        #             related_node_scores[edge[0]].append(result.similarity)
-        #             related_node_scores[edge[1]].append(result.similarity)
-
         for result in results:
             for n1, n2 in self.graph_store.get_phase_nodes_by_fact_id(
                 fact_id=result.data["doc_id"]
@@ -237,7 +201,6 @@ class GraphMemory:
             k=3,
             metadata_filters=filters,
         )
-        # related_passage_nodes: set[tuple[str, float]] = set()
         related_passage_node_scores: dict[str, float] = {}
         for result in summary_results:
             related_passage_node_scores[result.data["doc_id"]] = result.similarity
@@ -299,14 +262,6 @@ class GraphMemory:
         passage_nodes = await self._get_passage_nodes()
 
         print("AFTER PPR: ranked_scores", ranked_scores)
-        # print("AFTER PPR: passage_node_ids", passage_node_ids)
-
-        # doc_scores = np.array([[id, ranked_scores[id]] for id in passage_node_ids if id in ranked_scores])
-        # self.logger.info(f"Doc scores: {doc_scores}")
-        # if len(doc_scores) > 0:
-        #     doc_scores = doc_scores[doc_scores[:, 1].argsort()[::-1]]
-        #     ranked_docs = {id: score for id, score in doc_scores}  # noqa
-
         ranked_docs = {}
         for node_id, score in ranked_scores.items():
             if node_id in passage_nodes:
@@ -318,12 +273,6 @@ class GraphMemory:
 
     async def _get_passage_nodes(self, user_id: str = None) -> dict[str, PassageNode]:
         """获取所有 passage node 的 ID"""
-        # passage_node_ids = []
-        # for node, data in self.G.nodes(data=True):
-        #     if data.get("node_type") == PASSAGE_NODE_TYPE:
-        #         passage_node_ids.append(node)
-        # return passage_node_ids
-        # passage_node_ids = []
         ret = {}
         filter = {}
         if user_id:
@@ -375,6 +324,7 @@ class GraphMemory:
                     source=relation.get("source"),
                     target=relation.get("target"),
                     relation_type=relation.get("relation_type"),
+                    fact=relation.get("fact", None),
                 )
             )
         return relations

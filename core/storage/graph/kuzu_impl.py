@@ -207,7 +207,7 @@ class KuzuGraphStore(GraphStore):
         else:
             where_clause = ""
         query = f"""
-            MATCH (a)-[e]->(b)
+            MATCH (a)-[e: PhaseEdge]->(b)
             {where_clause}
             RETURN a, e, b;
         """
