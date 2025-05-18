@@ -54,6 +54,7 @@ Assistant: 我懂了，下次我们可以一起推公式、练证明，不是背
         dialogs = [sample_dialog_1, sample_dialog_2]
         for dialog in dialogs:
             text = await s.summarizer.summarize(dialog)
+            print(f"Summarized Text: {text}")
             await s.graph_memory.add_to_graph(
                 text=text,
                 user_id=atri_user_id,

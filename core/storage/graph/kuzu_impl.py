@@ -195,3 +195,27 @@ class KuzuGraphStore(GraphStore):
             m[G.nodes[k]["id"]] = v
         m = dict(sorted(m.items(), key=lambda item: item[1], reverse=True))
         return m
+
+    def get_graph_networkx(self, filter=None):
+        if filter:
+            where_clause = "WHERE "
+            clauses = []
+            for k, v in filter.items():
+                clauses.append(f"e.{k} = '{v}'")
+            if clauses:
+                where_clause += " AND ".join(clauses)
+        else:
+            where_clause = ""
+        query = f"""
+            MATCH (a)-[e: PhaseEdge]->(b)
+            {where_clause}
+            RETURN a, e, b;
+        """
+        result = self.conn.execute(query)
+        G = result.get_as_networkx()
+        nodes = list(G.nodes(data=True))
+        edges = list(G.edges(data=True))
+        return GraphResult(
+            nodes=nodes,
+            edges=edges,
+        )
