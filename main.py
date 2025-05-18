@@ -11,6 +11,7 @@ from astrbot.api import logger  # noqa
 from astrbot.dashboard.server import Response
 from .core.starter import ATRIMemoryStarter
 from collections import defaultdict
+from quart import request
 
 PLUGIN_DATA_DIR = StarTools.get_data_dir("atri")
 
@@ -24,9 +25,22 @@ class ATRIPlugin(Star):
         self.sum_threshold = 10
         self.dialogs = defaultdict(list)  # umo -> history
         self.context.register_web_api("/alkaid/ltm/graph", self.api_get_graph, ["GET"], "获取记忆图数据")
+        self.context.register_web_api("/alkaid/ltm/user_ids", self.api_get_user_ids, ["GET"], "获取所有用户ID")
 
     async def api_get_graph(self):
-        result = await self.memory_layer.graph_memory.get_graph()
+        # params
+        user_id = request.args.get("user_id", None)
+        group_id = request.args.get("group_id", None)
+        filter = {}
+        if user_id:
+            filter["user_id"] = user_id
+        if group_id:
+            filter["group_id"] = group_id
+        result = await self.memory_layer.graph_memory.get_graph(filter)
+        return Response().ok(data=result).__dict__
+
+    async def api_get_user_ids(self):
+        result = await self.memory_layer.graph_memory.get_user_ids()
         return Response().ok(data=result).__dict__
 
     @filter.on_astrbot_loaded()

@@ -196,10 +196,20 @@ class KuzuGraphStore(GraphStore):
         m = dict(sorted(m.items(), key=lambda item: item[1], reverse=True))
         return m
 
-    def get_graph_networkx(self):
-        query = """
-        MATCH (a) -[e]-> (b)
-        RETURN a, e, b;
+    def get_graph_networkx(self, filter=None):
+        if filter:
+            where_clause = "WHERE "
+            clauses = []
+            for k, v in filter.items():
+                clauses.append(f"e.{k} = '{v}'")
+            if clauses:
+                where_clause += " AND ".join(clauses)
+        else:
+            where_clause = ""
+        query = f"""
+            MATCH (a)-[e]->(b)
+            {where_clause}
+            RETURN a, e, b;
         """
         result = self.conn.execute(query)
         G = result.get_as_networkx()

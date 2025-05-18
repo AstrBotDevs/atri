@@ -79,7 +79,7 @@ class GraphStore(Protocol):
             tol (float): 收敛容忍度，表示当 PageRank 分数的变化小于该值时停止迭代。
         """
         ...
-    def get_graph_networkx(self) -> GraphResult:
+    def get_graph_networkx(self, filter: dict = None) -> GraphResult:
         """获取图的 NetworkX 表示"""
         ...
     

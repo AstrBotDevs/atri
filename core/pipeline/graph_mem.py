@@ -379,7 +379,11 @@ class GraphMemory:
             )
         return relations
 
-    async def get_graph(self) -> GraphResult:
+    async def get_graph(self, filter: dict = None) -> GraphResult:
         """获取图谱"""
         # return self.G
-        return self.graph_store.get_graph_networkx()
+        return self.graph_store.get_graph_networkx(filter)
+
+    async def get_user_ids(self) -> list[str]:
+        """获取所有用户 ID"""
+        return await self.vec_db.document_storage.get_user_ids()

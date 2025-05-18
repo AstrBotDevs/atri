@@ -2,6 +2,7 @@ import aiosqlite
 import os
 from loguru import logger
 
+
 class DocumentStorage:
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -56,7 +57,6 @@ class DocumentStorage:
                 result.append(await self.tuple_to_dict(row))
         return result
 
-
     async def get_document_by_doc_id(self, doc_id: str):
         """Retrieve a document by its doc_id.
 
@@ -73,6 +73,17 @@ class DocumentStorage:
                 return await self.tuple_to_dict(row)
             else:
                 return None
+
+    async def get_user_ids(self) -> list[str]:
+        """Retrieve all user IDs from the documents table.
+
+        Returns:
+            list: A list of user IDs.
+        """
+        async with self.connection.cursor() as cursor:
+            await cursor.execute("SELECT DISTINCT user_id FROM documents")
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
 
     async def tuple_to_dict(self, row):
         """Convert a tuple to a dictionary.
