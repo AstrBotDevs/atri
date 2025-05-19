@@ -22,7 +22,7 @@ Summarize the conversation into several concise sentences, focusing on:
 EXTRACT_ENTITES_PROMPT = """
 You are an expert at extracting structured entities from text.
 
-You will be given a summary of a multi-turn chat. Your task is to identify and extract the most relevant **entities**, such as people, locations, etc.
+You will be given a summary of a multi-turn chat. Your task is to identify and extract the most relevant **entities**.
 
 ## Output Format
 Return a JSON object with the following structure:
@@ -45,57 +45,90 @@ Return a JSON object with the following structure:
 """
 
 
-BUILD_RELATIONS_PROMPT = """
-You are an expert at building semantic relations between entities extracted from a text.
+REL_CHECK_PROMPT = """
+You are a fact conflict detection assistant for a knowledge graph.
 
-You will be given:
+Given a list of new facts and a list of existing facts, check for:
+- Semantic duplicates: The facts express the same meaning.
+- Semantic conflicts: The facts contradict each other (e.g., "John loves Alice" vs "John hates Alice").
+- If neither applies, mark as unrelated.
 
-1. A list of entities extracted from the text.
-2. The original text summary from which these entities are derived.
-
-## Your Task
-
-* Identify and extract meaningful **relations** between the given entities based on the original text.
-* Each relation should specify:
-
-  * `"source"`: the entity initiating the relation,
-  * `"target"`: the related entity,
-  * `"relation_type"`: a clear, concise label describing the relation,
-  * `"fact"`: The exact sentence from the input text that justifies the relation.
-
-## Output Format
-
-Return a JSON object with the following structure:
+Respond in the following JSON format:
 
 ```json
-{
-  "relations": [
-    {
-      "source": "",
-      "target": "",
-      "relation_type": "",
-      "fact": ""
-    }
-  ]
-}
+{{
+  "0": {{
+    "reason": "", // a very short reason for the judge
+    "result": 1,  // 0 = unrelated, 1 = conflict, 2 = duplicate
+    "existing_fact_idx": 0 // if unrelated, set to -1
+  }},
+  ...
+}}
 ```
 
-## Requirements
+New facts:
+{new_facts}
 
-* Relations must be based **only on explicitly mentioned facts** in the text — do not infer or hallucinate.
-* If no relations are found, return:
-
-```json
-{ "relations": [] }
-```
-
-* Relation types should be descriptive verbs or short phrases (e.g., `"likes"`, `"works_with"`, `"scheduled_on"`, `"responsible_for"`).
-* Each relation's `"source"` and `"target"` must be entities from the provided list.
-* Fact MUST include source, target, and relation type in the relation.
-* Use the **same language** as the input text.
+Existing facts:
+{existing_facts}
 """
 
 
+RESUM_PROMPT = """
+Given:
+- An **old summary** that describes various facts or events.
+- A **conflicting or outdated fact** from the old summary.
+- A **new fact** that should be integrated into the summary.
+
+Your task:
+1. Carefully update the old summary to incorporate the new fact.
+2. You may revise or replace the conflicting facts if needed.
+3. Preserve other unrelated information from the old summary.
+4. Keep the updated summary coherent and natural.
+
+Respond with ONLY the updated summary text.
+
+Old Summary:
+{old_summary}
+
+Conflicting Fact:
+{conflicting_fact}
+
+New Fact:
+{new_fact}
+
+Updated Summary:
+"""
+
+
+BUILD_RELATIONS_PROMPT = """
+You are an expert in extracting semantic relations between entities from a text.
+
+You will receive:
+
+1. A list of entities extracted from a summary.
+2. The original summary text.
+
+## Task
+
+Extract explicit relations between the entities using only information from the summary.
+
+For each relation, return:
+
+- `"source"`: the initiating entity,
+- `"target"`: the related entity,
+- `"relation_type"`: a concise verb or phrase (e.g., "loves", "works_at"),
+- `"fact"`: the semantic fact that describes the relation and contains a clear subject, verb, and object.
+
+## Rules
+
+- Each `fact` must be **unique** and support **only one relation**.
+- `source` and `target` must be in the entity list.
+- If no relations found, return `{ "relations": [] }`.
+- Output must use the **same language** as the input.
+"""
+
+# 暂时不使用
 """
 ## Examples
 

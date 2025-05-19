@@ -37,11 +37,13 @@ class PassageEdge(BaseEdge):
     summary_id: str
     """Summary ID"""
 
+
 @dataclass
 class PhaseEdge(BaseEdge):
     fact_id: str
     """Fact ID"""
-    
+
+
 class GraphResult(TypedDict):
     nodes: list
     edges: list
@@ -60,6 +62,7 @@ class GraphStore(Protocol):
     def get_phase_nodes_by_fact_id(
         self, fact_id: str
     ) -> Iterable[tuple[PhaseNode, PhaseNode]]: ...
+    def delete_phase_edge_by_fact_id(self, fact_id: str) -> None: ...
     def save(self, path: str) -> None: ...
     def load(self, path: str) -> None: ...
     def run_ppr(
@@ -79,7 +82,7 @@ class GraphStore(Protocol):
             tol (float): 收敛容忍度，表示当 PageRank 分数的变化小于该值时停止迭代。
         """
         ...
+
     def get_graph_networkx(self, filter: dict = None) -> GraphResult:
         """获取图的 NetworkX 表示"""
         ...
-    

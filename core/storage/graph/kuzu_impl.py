@@ -152,6 +152,14 @@ class KuzuGraphStore(GraphStore):
             b.pop("_label")
             yield (PhaseNode(**a), PhaseNode(**b))
 
+    def delete_phase_edge_by_fact_id(self, fact_id):
+        query = f"""
+            MATCH (a:PhaseNode)-[e:PhaseEdge]->(b:PhaseNode)
+            WHERE e.fact_id = '{fact_id}'
+            DELETE e;
+        """
+        self.conn.execute(query)
+
     def save(self, path: str) -> None:
         # Kuzu automatically persists to disk; left for interface compatibility
         pass

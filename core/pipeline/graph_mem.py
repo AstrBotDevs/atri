@@ -1,12 +1,18 @@
 import numpy as np
 import uuid
 import time
+import json
 import logging
 from collections import defaultdict
 from ..provider.llm.openai_source import ProviderOpenAI
-from ..util.prompts import EXTRACT_ENTITES_PROMPT, BUILD_RELATIONS_PROMPT
+from ..util.prompts import (
+    EXTRACT_ENTITES_PROMPT,
+    BUILD_RELATIONS_PROMPT,
+    REL_CHECK_PROMPT,
+    RESUM_PROMPT,
+)
 from ..util.misc import parse_json
-from ..storage.vec_db import VecDB
+from ..storage.vec_db import VecDB, Result
 from ..provider.embedding import EmbeddingProvider
 from ..storage.graph.base import *  # noqa
 from dataclasses import dataclass
@@ -51,7 +57,6 @@ class GraphMemory:
 
         self.logger = logger or logging.getLogger("astrbot")
 
-
     async def get_phase_node(self, entity_name: str) -> str | None:
         """查找是否有对应的 Phase 节点
 
@@ -74,7 +79,7 @@ class GraphMemory:
 
         1. Extract entities from the text.
         2. Build relations between entities.
-        3. Store the graph in memory.
+        3. Store.
         """
         if not username:
             username = user_id
@@ -96,6 +101,18 @@ class GraphMemory:
         self.logger.info(f"Entities: {entities}")
         self.logger.info(f"Relations: {relations}")
         timestamp = int(time.time())
+
+        # Check Duplicate / Conflict
+        # This step may set relation.fact to None
+        await self.check_relations(relations, user_id)
+        relations = [r for r in relations if r.fact is not None]
+        r_entities_name_map = {}
+        for entity in relations:
+            r_entities_name_map[entity.source] = None
+            r_entities_name_map[entity.target] = None
+        # make sure the entities are in the relations
+        entities = [entity for entity in entities if entity.name in r_entities_name_map]
+
         # Add the passage node
         summary_id = str(uuid.uuid4())
         self.logger.info(f"Summary insert -> {text} ID: {summary_id}")
@@ -104,7 +121,7 @@ class GraphMemory:
         }
         if group_id:
             metadata["group_id"] = group_id
-        _ = await self.vec_db_summary.insert(
+        await self.vec_db_summary.insert(
             text,
             metadata=metadata,
             id=summary_id,  # doc_id
@@ -141,6 +158,7 @@ class GraphMemory:
                     user_id=user_id,
                 )
             )
+        # Add Edges
         for relation in relations:
             fact_id = str(uuid.uuid4())
             if relation.source not in _node_id or relation.target not in _node_id:
@@ -164,11 +182,108 @@ class GraphMemory:
                 content=fact,
                 id=fact_id,
                 metadata={
+                    "summary_id": summary_id,
                     "user_id": user_id,
                     "username": username,
                 },
             )
         self.graph_store.save(self.file_path)
+
+    async def check_relations(self, relations: list[Relation], user_id: str):
+        """检查关系是否重复或冲突，并且做出相关更新"""
+        to_be_check = [r.fact for r in relations if r.fact]
+        # all_facts: list[Result] = []
+        all_facts: dict[str, Result] = {}
+        for relation in relations:
+            result_facts = await self.vec_db.retrieve(
+                query=relation.fact,
+                k=3,
+                metadata_filters={
+                    "user_id": user_id,
+                },
+            )
+            for result in result_facts:
+                all_facts[result.data["doc_id"]] = result
+        all_facts: list[Result] = list(all_facts.values())
+        if not all_facts:
+            return
+        self.logger.info(f"Check relations: {all_facts}")
+        to_be_check_str = ""
+        for idx, fact in enumerate(to_be_check):
+            to_be_check_str += f"{idx}: {fact}\n"
+        all_facts_str = ""
+        for idx, fact in enumerate(all_facts):
+            all_facts_str += f"{idx}: {fact.data['text']}\n"
+        print(f"to_be_check_str: {to_be_check_str}")
+        print(f"all_facts_str: {all_facts_str}")
+        prompt = REL_CHECK_PROMPT.format(
+            new_facts=to_be_check_str,
+            existing_facts=all_facts_str,
+        )
+        # LLM 1
+        llm_response = await self.provider.text_chat(
+            system_prompt="You are a fact conflict detection expert.",
+            prompt=prompt,
+        )
+        cleaned_data = parse_json(llm_response.completion_text)
+        print(f"fact conflict detection LLM response: {cleaned_data}")
+        for idx, result in cleaned_data.items():
+            assert isinstance(idx, str)
+            assert isinstance(result, dict)
+            if not idx.isdigit():
+                continue
+            if "existing_fact_idx" not in result:
+                continue
+            idx = int(idx)
+            existing_fact_idx = int(result["existing_fact_idx"])
+            if (
+                idx < 0
+                or idx >= len(to_be_check)
+                or existing_fact_idx < 0
+                or existing_fact_idx >= len(all_facts)
+            ):
+                continue
+
+            if result["result"] == 1:
+                # 1 = confict
+                self.logger.info(
+                    f"Conflict detected: {relations[int(idx)]} with {all_facts[int(result['existing_fact_idx'])]}"
+                )
+                # re sum
+                metadata = json.loads(all_facts[existing_fact_idx].data["metadata"])
+                old_summary_id = metadata.get("summary_id", None)
+                old_summary = (
+                    await self.vec_db_summary.document_storage.get_document_by_doc_id(
+                        old_summary_id
+                    )
+                )
+                llm_response_resum = await self.provider.text_chat(
+                    system_prompt="You are an intelligent assistant that helps update personal memory summaries.",
+                    prompt=RESUM_PROMPT.format(
+                        old_summary=old_summary["text"],
+                        conflicting_fact=all_facts[existing_fact_idx].data["text"],
+                        new_fact=relations[idx].fact,
+                    ),
+                )
+                print(f"llm_response_resum: {llm_response_resum.completion_text}")
+                await self.vec_db_summary.document_storage.update_document_by_doc_id(
+                    doc_id=old_summary_id,
+                    new_text=llm_response_resum.completion_text,
+                )
+                # delete edge and fact from store
+                self.graph_store.delete_phase_edge_by_fact_id(
+                    fact_id=all_facts[existing_fact_idx].data["doc_id"]
+                )
+                await self.vec_db.delete(
+                    doc_id=all_facts[existing_fact_idx].data["doc_id"]
+                )
+
+            elif result["result"] == 2:
+                # 2 = duplicate
+                self.logger.info(
+                    f"Duplicate detected: {relations[int(idx)]} with {all_facts[int(result['existing_fact_idx'])]}"
+                )
+                relations[int(idx)].fact = None
 
     async def search_graph(
         self, query: str, num_to_retrieval: int = 5, filters: dict = None

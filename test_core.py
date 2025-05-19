@@ -51,7 +51,22 @@ Assistant: 嗯，证明题确实需要单独训练。你有试着总结过公式
 ATRI: 有做一些笔记，但都是抄的，没太理解，感觉只是完成任务一样。
 Assistant: 我懂了，下次我们可以一起推公式、练证明，不是背下来，而是理解它怎么来的，这样考试才不容易慌。
 """
-        dialogs = [sample_dialog_1, sample_dialog_2]
+
+        # test memory update
+        sample_dialog_3 = """ATRI: 我有一个外号，叫高性能机器人
+Assistant: 哈哈，为什么叫这个外号呢？
+ATRI: 因为我是高性能的嘛！
+Assistant: 哦，原来如此！你觉得自己最厉害的地方是什么？
+ATRI: 我觉得我最厉害的地方是吃螃蟹！我最喜欢吃螃蟹了！
+"""
+        # test memory update
+        sample_dialog_4 = """ATRI: 我一点都不喜欢吃螃蟹，因为我对螃蟹过敏！
+Assistant: 哦，原来如此！那你喜欢吃什么呢？
+ATRI: 我喜欢吃关东煮！
+Assistant: 关东煮很好吃！你最喜欢的配料是什么？
+ATRI: 我最喜欢吃白萝卜和鸡蛋！
+"""
+        dialogs = [sample_dialog_1, sample_dialog_2, sample_dialog_3, sample_dialog_4]
         for dialog in dialogs:
             text = await s.summarizer.summarize(dialog)
             print(f"Summarized Text: {text}")
@@ -62,9 +77,11 @@ Assistant: 我懂了，下次我们可以一起推公式、练证明，不是背
                 username=atri_user_name,
             )
         # --- test edges ---
-        ret = s.kuzu_graph_store.get_passage_edges(filter={
-            "user_id": atri_user_id,
-        })
+        ret = s.kuzu_graph_store.get_passage_edges(
+            filter={
+                "user_id": atri_user_id,
+            }
+        )
         ret_ls = list(ret)
         print(f"Passage Edges: {ret_ls}")
         assert len(ret_ls) > 0

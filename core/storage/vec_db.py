@@ -117,10 +117,10 @@ class VecDB:
 
     async def delete(self, doc_id: int):
         """
-        删除一条文档（同时从 SQLite 中删除）
+        删除一条文档
         """
         await self.document_storage.connection.execute(
-            "DELETE FROM documents WHERE id = ?", (doc_id,)
+            "DELETE FROM documents WHERE doc_id = ?", (doc_id,)
         )
         await self.document_storage.connection.commit()
 
