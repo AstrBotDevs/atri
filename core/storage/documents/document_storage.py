@@ -74,6 +74,20 @@ class DocumentStorage:
             else:
                 return None
 
+    async def update_document_by_doc_id(self, doc_id: str, new_text: str):
+        """Retrieve a document by its doc_id.
+
+        Args:
+            doc_id (str): The doc_id.
+            new_text (str): The new text to update the document with.
+        """
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(
+                "UPDATE documents SET text = ? WHERE doc_id = ?", (new_text, doc_id)
+            )
+            await self.connection.commit()
+            logger.debug(f"Updated document with doc_id {doc_id}.")
+
     async def get_user_ids(self) -> list[str]:
         """Retrieve all user IDs from the documents table.
 
