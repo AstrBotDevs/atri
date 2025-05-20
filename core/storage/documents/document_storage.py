@@ -16,7 +16,7 @@ class DocumentStorage:
         if not os.path.exists(self.db_path):
             await self.connect()
             async with self.connection.cursor() as cursor:
-                with open(self.sqlite_init_path, "r") as f:
+                with open(self.sqlite_init_path, "r", encoding="utf-8") as f:
                     sql_script = f.read()
                 await cursor.executescript(sql_script)
             await self.connection.commit()
