@@ -17,6 +17,10 @@ Summarize the conversation into several concise sentences, focusing on:
 - Keep names/entities exactly as written in the chat.
 - Output must be in the **dominant language** of the chat.
 - Use the same language as user's input.
+
+### Special Cases
+- If there is no content suitable for summarization, output "%None%"
+- If the conversation topic is incomplete or pending resolution, output "%Hold%"
 """
 
 EXTRACT_ENTITES_PROMPT = """
