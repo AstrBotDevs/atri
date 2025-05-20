@@ -53,7 +53,7 @@ class KuzuGraphStore(GraphStore):
             return result.get_next()[0]
         return None
 
-    def get_passage_nodes(self, filter: dict = {}) -> Iterable[PassageNode]:
+    def get_passage_nodes(self, filter=None) -> Iterable[PassageNode]:
         where_clause = ""
         if filter:
             clauses = []
@@ -68,7 +68,7 @@ class KuzuGraphStore(GraphStore):
             id_val, ts, user_id = result.get_next()
             yield PassageNode(id=id_val, ts=ts, user_id=user_id)
 
-    def get_phase_nodes(self, filter: dict = {}) -> Iterable[PhaseNode]:
+    def get_phase_nodes(self, filter=None) -> Iterable[PhaseNode]:
         where_clause = ""
         if filter:
             clauses = []
@@ -83,7 +83,7 @@ class KuzuGraphStore(GraphStore):
             id_val, ts, name, type_val = result.get_next()
             yield PhaseNode(id=id_val, ts=ts, name=name, type=type_val)
 
-    def get_passage_edges(self, filter: dict = {}) -> Iterable[PassageEdge]:
+    def get_passage_edges(self, filter=None) -> Iterable[PassageEdge]:
         where_clause = ""
         if filter:
             clauses = []
@@ -109,7 +109,7 @@ class KuzuGraphStore(GraphStore):
                 user_id=user_id,
             )
 
-    def get_phase_edges(self, filter: dict = {}) -> Iterable[PhaseEdge]:
+    def get_phase_edges(self, filter=None) -> Iterable[PhaseEdge]:
         where_clause = ""
         if filter:
             clauses = []
