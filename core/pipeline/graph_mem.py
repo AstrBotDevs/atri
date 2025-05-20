@@ -294,11 +294,12 @@ class GraphMemory:
             k=5,
             metadata_filters=filters,
         )
-        print(f"Search Fact results: {results}")
+        self.logger.info(f"SEARCH FACT RESULTS: {results}")
         # 通过 ID 获取边，进而得到所有实体
         final_related_node_score: dict[str, float] = {}
         related_node_scores = defaultdict(list[float])
 
+        _node_id_name = {}
         for result in results:
             if result.data["doc_id"] == "-1":
                 continue
@@ -307,10 +308,21 @@ class GraphMemory:
             ):
                 related_node_scores[n1.id].append(result.similarity)
                 related_node_scores[n2.id].append(result.similarity)
+                _node_id_name[n1.id] = n1.name
+                _node_id_name[n2.id] = n2.name
 
         self.logger.info(f"Related phase entities: {str(related_node_scores)}")
         for node, scores in related_node_scores.items():
             final_related_node_score[node] = np.mean(scores)
+            cnt = self.graph_store.cnt_phase_node_edges(node)
+            self.logger.info(f"Node: {_node_id_name[node]} cnt: {cnt}")
+            if cnt > 0:
+                final_related_node_score[node] /= cnt
+
+        for node, score in final_related_node_score.items():
+            self.logger.info(
+                f"RELATED NODE: {node} name: {_node_id_name[node]} score: {score}"
+            )
 
         # --- SUMMARY RESULTS
         summary_results = await self.vec_db_summary.retrieve(
@@ -318,6 +330,8 @@ class GraphMemory:
             k=3,
             metadata_filters=filters,
         )
+        self.logger.info(f"SEARCH SUMMARY RESULTS: {summary_results}")
+
         related_passage_node_scores: dict[str, float] = {}
         for result in summary_results:
             if result.data["doc_id"] == "-1":
@@ -346,7 +360,10 @@ class GraphMemory:
                     doc_id
                 )
             )
-            ret[doc_id] = doc_data.get("text", None)
+            ret[doc_id] = {
+                "text": doc_data.get("text", None),
+                "score": score,
+            }
             i += 1
             if i >= num_to_retrieval:
                 break
@@ -364,7 +381,7 @@ class GraphMemory:
         ranked_docs = {}
 
         self.logger.info(
-            f"personalization: {personalization}, max_iter: {max_iter}, tol: {tol}"
+            f"personalization params: {personalization}, max_iter: {max_iter}, tol: {tol}"
         )
 
         if not personalization:

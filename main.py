@@ -26,6 +26,8 @@ class ATRIPlugin(Star):
         self.dialogs = defaultdict(list)  # umo -> history
         self.context.register_web_api("/alkaid/ltm/graph", self.api_get_graph, ["GET"], "获取记忆图数据")
         self.context.register_web_api("/alkaid/ltm/user_ids", self.api_get_user_ids, ["GET"], "获取所有用户ID")
+        self.context.register_web_api("/alkaid/ltm/graph/add", self.api_add_graph, ["POST"], "添加记忆图数据")
+        self.context.register_web_api("/alkaid/ltm/graph/search", self.api_search_graph, ["GET"], "搜索记忆图数据")
 
     async def api_get_graph(self):
         # params
@@ -41,6 +43,28 @@ class ATRIPlugin(Star):
 
     async def api_get_user_ids(self):
         result = await self.memory_layer.graph_memory.get_user_ids()
+        return Response().ok(data=result).__dict__
+
+    async def api_add_graph(self):
+        data = await request.get_json()
+        text = data.get("text")
+        user_id = data.get("user_id")
+        need_summarize = data.get("need_summarize", False)
+        if need_summarize:
+            text = await self.memory_layer.summarizer.summarize(text)
+        await self.memory_layer.graph_memory.add_to_graph(
+            text=text,
+            user_id=user_id,
+        )
+        return Response().ok("添加成功").__dict__
+
+    async def api_search_graph(self):
+        user_id = request.args.get("user_id", None)
+        query = request.args.get("query", None)
+        filters = {}
+        if user_id:
+            filters["user_id"] = user_id
+        result = await self.memory_layer.graph_memory.search_graph(query, filters=filters)
         return Response().ok(data=result).__dict__
 
     @filter.on_astrbot_loaded()
