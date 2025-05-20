@@ -160,6 +160,17 @@ class KuzuGraphStore(GraphStore):
         """
         self.conn.execute(query)
 
+    def cnt_phase_node_edges(self, node_id: str) -> int:
+        query = f"""
+            MATCH (a:PhaseNode)-[e:PhaseEdge]->(b:PhaseNode)
+            WHERE a.id = '{node_id}' OR b.id = '{node_id}'
+            RETURN COUNT(e);
+        """
+        result = self.conn.execute(query)
+        if result.has_next():
+            return result.get_next()[0]
+        return 0
+
     def save(self, path: str) -> None:
         # Kuzu automatically persists to disk; left for interface compatibility
         pass
