@@ -300,6 +300,8 @@ class GraphMemory:
         related_node_scores = defaultdict(list[float])
 
         for result in results:
+            if result.data["doc_id"] == "-1":
+                continue
             for n1, n2 in self.graph_store.get_phase_nodes_by_fact_id(
                 fact_id=result.data["doc_id"]
             ):
@@ -318,6 +320,8 @@ class GraphMemory:
         )
         related_passage_node_scores: dict[str, float] = {}
         for result in summary_results:
+            if result.data["doc_id"] == "-1":
+                continue
             related_passage_node_scores[result.data["doc_id"]] = result.similarity
 
         # 执行 PPR 算法，得到最终的文档
