@@ -12,6 +12,7 @@ class KuzuGraphStore(GraphStore):
         self._init_schema()
 
     def _init_schema(self):
+        """初始化数据库模式"""
         self.conn.execute(
             (
                 "CREATE NODE TABLE IF NOT EXISTS PhaseNode(id STRING, ts TIMESTAMP, name STRING, type STRING, PRIMARY KEY(id));"
@@ -22,10 +23,10 @@ class KuzuGraphStore(GraphStore):
         )
 
     def add_passage_node(self, node: PassageNode) -> None:
-        """添加 PassageNode 节点
+        """添加记忆节点
 
         Args:
-            node (PassageNode): PassageNode 节点对象
+            node (PassageNode): 记忆节点对象
         """
         query = (
             "MERGE (:PassageNode {id: $id, user_id: $user_id, ts: to_timestamp($ts)});"
@@ -34,20 +35,20 @@ class KuzuGraphStore(GraphStore):
         self.conn.execute(query, params)
 
     def add_phase_node(self, node: PhaseNode) -> None:
-        """添加 PhaseNode 节点
+        """添加概念节点
 
         Args:
-            node (PhaseNode): PhaseNode 节点对象
+            node (PhaseNode): 概念节点对象
         """
         query = "MERGE (:PhaseNode {id: $id, ts: to_timestamp($ts), name: $name, type: $type});"
         params = {"id": node.id, "ts": node.ts, "name": node.name, "type": node.type}
         self.conn.execute(query, params)
 
     def add_passage_edge(self, edge: PassageEdge) -> None:
-        """添加 PassageEdge 边
+        """添加记忆关联边(段落关联边)
 
         Args:
-            edge (PassageEdge): PassageEdge 边对象
+            edge (PassageEdge): 记忆关联边(段落关联边)对象
         """
         query = """
             MATCH (a:PhaseNode), (b:PassageNode)
@@ -65,10 +66,10 @@ class KuzuGraphStore(GraphStore):
         self.conn.execute(query, params)
 
     def add_phase_edge(self, edge: PhaseEdge) -> None:
-        """添加 PhaseEdge 边
+        """添加概念关系边(实体关系边)
 
         Args:
-            edge (PhaseEdge): PhaseEdge 边对象
+            edge (PhaseEdge): 概念关系边(实体关系边)对象
         """
         query = """
             MATCH (a:PhaseNode), (b:PhaseNode)
@@ -86,10 +87,10 @@ class KuzuGraphStore(GraphStore):
         self.conn.execute(query, params)
 
     def find_phase_node_by_name(self, name: str) -> str | None:
-        """根据名称查找 PhaseNode 节点
+        """根据名称查找概念节点(实体节点)
 
         Args:
-            name (str): PhaseNode 节点名称
+            name (str): 概念节点(实体节点)名称
         """
         query = "MATCH (n:PhaseNode) WHERE n.name = $name RETURN n.id;"
         params = {"name": name}
@@ -99,10 +100,12 @@ class KuzuGraphStore(GraphStore):
         return None
 
     def get_passage_nodes(self, filter: dict = {}) -> Iterable[PassageNode]:
-        """根据过滤器获取 PassageNode 节点
+        """根据过滤器获取记忆节点(段落节点)
 
         Args:
-            filter (dict): 过滤器，键为属性名，值为属性值
+            filter (dict): 过滤器字典，键为属性名，值为属性值
+        Returns:
+            Iterable[PassageNode]: 记忆节点(段落节点)的迭代器
         """
         where_clause = ""
         params = {}
@@ -122,10 +125,12 @@ class KuzuGraphStore(GraphStore):
             yield PassageNode(id=id_val, ts=ts, user_id=user_id)
 
     def get_phase_nodes(self, filter: dict = {}) -> Iterable[PhaseNode]:
-        """根据过滤器获取 PhaseNode 节点
+        """根据过滤器获取概念节点(实体节点)
 
         Args:
-            filter (dict): 过滤器，键为属性名，值为属性值
+            filter (dict): 过滤器字典，键为属性名，值为属性值
+        Returns:
+            Iterable[PhaseNode]: 概念节点(实体节点)的迭代器
         """
         where_clause = ""
         params = {}
@@ -145,10 +150,12 @@ class KuzuGraphStore(GraphStore):
             yield PhaseNode(id=id_val, ts=ts, name=name, type=type_val)
 
     def get_passage_edges(self, filter: dict = {}) -> Iterable[PassageEdge]:
-        """根据过滤器获取 PassageEdge 边
+        """根据过滤器获取记忆关联边(段落关联边)
 
         Args:
-            filter (dict): 过滤器，键为属性名，值为属性值
+            filter (dict): 过滤器字典，键为属性名，值为属性值
+        Returns:
+            Iterable[PassageEdge]: 记忆关联边(段落关联边)的迭代器
         """
         where_clause = ""
         params = {}
@@ -179,10 +186,12 @@ class KuzuGraphStore(GraphStore):
             )
 
     def get_phase_edges(self, filter: dict = {}) -> Iterable[PhaseEdge]:
-        """根据过滤器获取 PhaseEdge 边
+        """根据过滤器获取概念关系边(实体关系边)
 
         Args:
-            filter (dict): 过滤器，键为属性名，值为属性值
+            filter (dict): 过滤器字典，键为属性名，值为属性值
+        Returns:
+            Iterable[PhaseEdge]: 概念关系边(实体关系边)的迭代器
         """
         where_clause = ""
         params = {}
@@ -215,10 +224,12 @@ class KuzuGraphStore(GraphStore):
     def get_phase_nodes_by_fact_id(
         self, fact_id: str
     ) -> Iterable[tuple[PhaseNode, PhaseNode]]:
-        """根据 fact_id 获取 PhaseNode 节点
+        """根据概念 id 获取两个由该概念关联的概念节点(实体节点)
 
         Args:
-            fact_id (str): 事实 id
+            fact_id (str): 概念 id
+        Returns:
+            Iterable[tuple[PhaseNode, PhaseNode]]: 概念节点(实体节点)元组的迭代器, 其中每对概念节点都由这个概念 id 对应的概念关联起来
         """
         query = """
             MATCH (a:PhaseNode)-[e:PhaseEdge]->(b:PhaseNode)
@@ -236,10 +247,10 @@ class KuzuGraphStore(GraphStore):
             yield (PhaseNode(**a), PhaseNode(**b))
 
     def delete_phase_edge_by_fact_id(self, fact_id: str):
-        """根据 fact_id 删除 PhaseEdge 边
+        """根据概念 id 删除概念关系边(实体关系边)
 
         Args:
-            fact_id (str): 事实 id
+            fact_id (str): 概念 id
         """
         query = """
             MATCH (a:PhaseNode)-[e:PhaseEdge]->(b:PhaseNode)
@@ -250,10 +261,12 @@ class KuzuGraphStore(GraphStore):
         self.conn.execute(query, params)
 
     def cnt_phase_node_edges(self, node_id: str) -> int:
-        """统计 PhaseNode 节点的边数
+        """统计概念节点(实体节点)的边数
 
         Args:
-            node_id (str): PhaseNode 节点 id
+            node_id (str): 概念节点(实体节点) id
+        Returns:
+            int: 概念节点(实体节点)的边数
         """
         query = """
             MATCH (a:PhaseNode)-[e:PhaseEdge]->(b:PhaseNode)
@@ -325,6 +338,8 @@ class KuzuGraphStore(GraphStore):
 
         Args:
             filter (dict): 过滤器，键为属性名，值为属性值
+        Returns:
+            GraphResult: 图结构结果，包含节点和边的列表
         """
         where_clause = ""
         params = {}
