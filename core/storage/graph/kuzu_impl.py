@@ -99,6 +99,30 @@ class KuzuGraphStore(GraphStore):
             return result.get_next()[0]
         return None
 
+    def _build_where_clause(
+        self, filter: dict, node_alias: str = "n"
+    ) -> tuple[str, dict]:
+        """构建 WHERE 子句和参数字典
+
+        Args:
+            filter (dict): 过滤器字典，键为属性名，值为属性值
+            node_alias (str): 节点别名，默认为 "n"
+
+        Returns:
+            tuple[str, dict]: WHERE 子句和参数字典
+        """
+        where_clause = ""
+        params = {}
+        if filter:
+            clauses = []
+            for k, v in filter.items():
+                param_name = f"param_{k}"
+                clauses.append(f"{node_alias}.{k} = ${param_name}")
+                params[param_name] = v
+            if clauses:
+                where_clause = "WHERE " + " AND ".join(clauses)
+        return where_clause, params
+
     def get_passage_nodes(self, filter: dict = {}) -> Iterable[PassageNode]:
         """根据过滤器获取记忆节点(段落节点)
 
@@ -107,17 +131,7 @@ class KuzuGraphStore(GraphStore):
         Returns:
             Iterable[PassageNode]: 记忆节点(段落节点)的迭代器
         """
-        where_clause = ""
-        params = {}
-        if filter:
-            clauses = []
-            for k, v in filter.items():
-                param_name = f"param_{k}"
-                clauses.append(f"n.{k} = ${param_name}")
-                params[param_name] = v
-            if clauses:
-                where_clause = "WHERE " + " AND ".join(clauses)
-
+        where_clause, params = self._build_where_clause(filter)
         query = f"MATCH (n:PassageNode) {where_clause} RETURN n.id, n.ts, n.user_id;"
         result = self.conn.execute(query, params)
         while result.has_next():
@@ -132,17 +146,7 @@ class KuzuGraphStore(GraphStore):
         Returns:
             Iterable[PhaseNode]: 概念节点(实体节点)的迭代器
         """
-        where_clause = ""
-        params = {}
-        if filter:
-            clauses = []
-            for k, v in filter.items():
-                param_name = f"param_{k}"
-                clauses.append(f"n.{k} = ${param_name}")
-                params[param_name] = v
-            if clauses:
-                where_clause = "WHERE " + " AND ".join(clauses)
-
+        where_clause, params = self._build_where_clause(filter)
         query = f"MATCH (n:PhaseNode) {where_clause} RETURN n.id, n.ts, n.name, n.type;"
         result = self.conn.execute(query, params)
         while result.has_next():
@@ -157,17 +161,7 @@ class KuzuGraphStore(GraphStore):
         Returns:
             Iterable[PassageEdge]: 记忆关联边(段落关联边)的迭代器
         """
-        where_clause = ""
-        params = {}
-        if filter:
-            clauses = []
-            for k, v in filter.items():
-                param_name = f"param_{k}"
-                clauses.append(f"e.{k} = ${param_name}")
-                params[param_name] = v
-            if clauses:
-                where_clause = "WHERE " + " AND ".join(clauses)
-
+        where_clause, params = self._build_where_clause(filter, node_alias="e")
         query = f"""
             MATCH (a:PhaseNode)-[e:PassageEdge]->(b:PassageNode)
             {where_clause}
@@ -193,17 +187,7 @@ class KuzuGraphStore(GraphStore):
         Returns:
             Iterable[PhaseEdge]: 概念关系边(实体关系边)的迭代器
         """
-        where_clause = ""
-        params = {}
-        if filter:
-            clauses = []
-            for k, v in filter.items():
-                param_name = f"param_{k}"
-                clauses.append(f"e.{k} = ${param_name}")
-                params[param_name] = v
-            if clauses:
-                where_clause = "WHERE " + " AND ".join(clauses)
-
+        where_clause, params = self._build_where_clause(filter, node_alias="e")
         query = f"""
             MATCH (a:PhaseNode)-[e:PhaseEdge]->(b:PhaseNode)
             {where_clause}
@@ -341,19 +325,7 @@ class KuzuGraphStore(GraphStore):
         Returns:
             GraphResult: 图结构结果，包含节点和边的列表
         """
-        where_clause = ""
-        params = {}
-        if filter:
-            clauses = []
-            for k, v in filter.items():
-                param_name = f"param_{k}"
-                clauses.append(f"e.{k} = ${param_name}")
-                params[param_name] = v
-            if clauses:
-                where_clause = "WHERE " + " AND ".join(clauses)
-        else:
-            where_clause = ""
-
+        where_clause, params = self._build_where_clause(filter, node_alias="e")
         query = f"""
             MATCH (a)-[e: PhaseEdge]->(b)
             {where_clause}
