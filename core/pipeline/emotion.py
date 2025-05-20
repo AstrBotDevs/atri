@@ -1,5 +1,6 @@
-from enum import Enum
+import re
 import json
+from enum import Enum
 
 from astrbot.api import logger
 from ..provider.llm.openai_source import ProviderOpenAI
@@ -76,17 +77,29 @@ class EmotionAnalysis:
             system_prompt=sys_prompt,
             prompt=json.dumps(text),
         )
-        try:
-            cleaned_text = (
-                res.completion_text.replace("```json", "")
-                .replace("```", "")
-                .replace("{{", "{")
-                .replace("}}", "}")
-                .strip()
-            )
-            resp = json.loads(cleaned_text)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to decode JSON: {cleaned_text}")
-            return None
 
-        return resp
+        try:
+            json_pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
+            matches = re.findall(json_pattern, res.completion_text)
+
+            if matches:
+                json_content = matches[0]
+            else:
+                json_content = (
+                    res.completion_text.replace("```json", "")
+                    .replace("```", "")
+                    .strip()
+                )
+
+            cleaned_content = json_content.replace("{{", "{").replace("}}", "}").strip()
+            resp = json.loads(cleaned_content)
+
+            return resp
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing error: {e!s}")
+            logger.error(f"Failed content: {cleaned_content}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error in emotion analysis: {e!s}")
+            return None
