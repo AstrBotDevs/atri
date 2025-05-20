@@ -13,10 +13,6 @@ class Result:
     similarity: float
     data: dict
 
-def l2_to_similarity_softmax(l2_scores):
-    neg_scores = -np.array(l2_scores)
-    exp_scores = np.exp(neg_scores - np.max(neg_scores))  # 防止溢出
-    return exp_scores / np.sum(exp_scores)
 
 def uuid_to_int(uuid_str: str) -> int:
     """将UUID字符串转换为64位整数（只使用UUID的一部分）"""
@@ -84,16 +80,16 @@ class VecDB:
             List[Result]: 查询结果
         """
         embedding = await self.embedding_provider.get_embedding(query)
-
         scores, indices = await self.embedding_storage.search(
-            vector=embedding, k=k if not metadata_filters else fetch_k
+            vector=np.array([embedding]).astype("float32"),
+            k=k if not metadata_filters else fetch_k,
         )
         # TODO: rerank
         if len(indices[0]) == 0 or indices[0][0] == -1:
             return []
         # normalize scores
         logger.debug(f"before similarity: {scores} indices: {indices}")
-        scores[0] = l2_to_similarity_softmax(scores[0])
+        scores[0] = 1.0 - (scores[0] / 2.0)
         logger.debug(f"retrieval from faiss: SIMILARITY {scores} INDICES {indices}")
         # NOTE: maybe the size is less than k.
         fetched_docs = await self.document_storage.get_documents(
@@ -106,12 +102,12 @@ class VecDB:
         idx_pos = {}
         for idx, fetch_doc in enumerate(fetched_docs):
             idx_pos[fetch_doc["id"]] = idx
-        for idx in indices[0]:
-            pos = idx_pos.get(idx)
+        for i, indice_idx in enumerate(indices[0]):
+            pos = idx_pos.get(indice_idx)
             if pos is None:
                 continue
             fetch_doc = fetched_docs[pos]
-            score = scores[0][idx]
+            score = scores[0][i]
             result_docs.append(Result(similarity=score, data=fetch_doc))
         return result_docs[:k]
 
