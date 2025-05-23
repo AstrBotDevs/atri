@@ -2,9 +2,7 @@ import os
 import logging
 from .provider.llm.openai_source import ProviderOpenAI
 from .provider.embedding.nomic_embed import NomicEmbeddingProvider
-from .storage.vec_db import VecDB
-from .storage.documents.document_storage import DocumentStorage
-from .storage.embedding.embedding_storage import EmbeddingStorage
+from astrbot.core.db.vec_db.faiss_impl import FaissVecDB
 from .storage.graph.kuzu_impl import KuzuGraphStore
 from .pipeline.graph_mem import GraphMemory
 from .pipeline.summarize import Summarize
@@ -35,29 +33,22 @@ class ATRIMemoryStarter:
         self.mem_graph_path = os.path.join(self.data_dir_path, "mem_graph")
 
         self.embedding_model = NomicEmbeddingProvider()
-        self.vec_dim = await self.embedding_model.get_dim()
 
         # FACT VEC DB
-        self.fact_docs_store = DocumentStorage(self.fact_db_path)
-        self.fact_vec_store = EmbeddingStorage(self.vec_dim, self.embedding_db_path)
-        await self.fact_docs_store.initialize()
-        self.fact_vec_db = VecDB(
-            document_storage=self.fact_docs_store,
-            embedding_storage=self.fact_vec_store,
+        self.fact_vec_db = FaissVecDB(
+            doc_store_path=self.fact_db_path,
+            index_store_path=self.embedding_db_path,
             embedding_provider=self.embedding_model,
         )
+        await self.fact_vec_db.initialize()
 
         # SUMMARY VEC DB
-        self.summary_docs_store = DocumentStorage(self.summary_db_path)
-        self.summary_vec_store = EmbeddingStorage(
-            self.vec_dim, self.summary_embedding_db_path
-        )
-        await self.summary_docs_store.initialize()
-        self.summary_vec_db = VecDB(
-            document_storage=self.summary_docs_store,
-            embedding_storage=self.summary_vec_store,
+        self.summary_vec_db = FaissVecDB(
+            doc_store_path=self.summary_db_path,
+            index_store_path=self.summary_embedding_db_path,
             embedding_provider=self.embedding_model,
         )
+        await self.summary_vec_db.initialize()
 
         # graph store
         self.kuzu_graph_store = KuzuGraphStore(

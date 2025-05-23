@@ -12,8 +12,8 @@ from ..util.prompts import (
     RESUM_PROMPT,
 )
 from ..util.misc import parse_json
-from ..storage.vec_db import VecDB, Result
-from ..provider.embedding import EmbeddingProvider
+from astrbot.core.db.vec_db.base import BaseVecDB as VecDB, Result
+from astrbot.core.provider.provider import EmbeddingProvider
 from ..storage.graph.base import *  # noqa
 from dataclasses import dataclass
 
