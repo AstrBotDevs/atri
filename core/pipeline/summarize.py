@@ -16,13 +16,18 @@ class Summarize:
     def __init__(self, provider: ProviderOpenAI):
         self.provider = provider
 
-    async def summarize(self, context: str) -> str:
+    async def summarize(self, context: str, add_time=True) -> str:
         """Summarize the given context using the provider."""
-        # logger.debug(f"Summarizing - {context}")
-        sys_prompt = (
-            SUMMARIZE_PROMPT
-            + "\nCurrent time: "
-            + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        sys_prompt = SUMMARIZE_PROMPT
+        if add_time:
+            sys_prompt += "\nCurrent time: " + datetime.datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        context = (
+            "Here are a conversation:"
+            f"\n---\n{context}\n---\n"
+            "Please summarize the conversation above in a concise and clear manner"
         )
         summarize_res = await self.provider.text_chat(
             system_prompt=sys_prompt,

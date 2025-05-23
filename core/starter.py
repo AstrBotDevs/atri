@@ -9,7 +9,9 @@ from .storage.graph.kuzu_impl import KuzuGraphStore
 from .pipeline.graph_mem import GraphMemory
 from .pipeline.summarize import Summarize
 
-logger = logging.getLogger("astrbot")
+# logger = logging.getLogger("astrbot")
+
+from loguru import logger
 
 
 class ATRIMemoryStarter:
@@ -73,5 +75,6 @@ class ATRIMemoryStarter:
             vec_db=self.fact_vec_db,
             vec_db_summary=self.summary_vec_db,
             graph_store=self.kuzu_graph_store,
+            logger=logger
         )
         logger.info("Graph memory initialized successfully.")

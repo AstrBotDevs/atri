@@ -1,21 +1,12 @@
-SUMMARIZE_PROMPT = """
-You are an expert at summarizing multi-turn chats with a focus on key actors and their actions.
+SUMMARIZE_PROMPT = """You are an expert at summarizing multi-turn chats.
 
 You will be given a multi-turn chat between several participants.
 
-## Your Task
-Summarize the conversation into several concise sentences, focusing on:
+You need to summarize the chat, including ALL THE MOST IMPORTANT facts, events, and decisions about the users in the chat.
 
-- **Who did what** — use clear subjects (people/entities) in each sentence.
-- **When** — include any time or scheduling information if available.
-- **What matters** — only summarize important, clear, and long-term relevant infomation.
-- **What not to include** — ignore small talk, or trivial details.
-- **Completeness** — ensure the summary is complete and coherent.
-
-### Format
-- Do not rephrase ambiguous intent or invent missing details.
+- Use clear subjects (people/entities) in each sentence.
+- Include any time or scheduling information if available.
 - Keep names/entities exactly as written in the chat.
-- Output must be in the **dominant language** of the chat.
 - Use the same language as user's input.
 """
 
@@ -25,7 +16,7 @@ You are an expert at extracting structured entities from text.
 You will be given a summary of a multi-turn chat. Your task is to identify and extract the most relevant **entities**.
 
 ## Output Format
-Return a JSON object with the following structure:
+RETURN A JSON OBJECT with the following structure:
 ```json
 {
   "entities": [
@@ -102,7 +93,7 @@ Updated Summary:
 
 
 BUILD_RELATIONS_PROMPT = """
-You are an expert in extracting semantic relations between entities from a text.
+You are an expert in extracting semantic relations and facts.
 
 You will receive:
 
@@ -113,17 +104,16 @@ You will receive:
 
 Extract explicit relations between the entities using only information from the summary.
 
-For each relation, return:
+For each relation, RETURN A JSON OBJECT with the following structure:
 
 - `"source"`: the initiating entity,
 - `"target"`: the related entity,
 - `"relation_type"`: a concise verb or phrase (e.g., "loves", "works_at"),
-- `"fact"`: the semantic fact that describes the relation and contains a clear subject, verb, and object.
+- `"fact"`: A sentence that can clearly describe the relation.(I will use this for searching)
 
 ## Rules
 
-- Each `fact` must be **unique** and support **only one relation**.
-- `source` and `target` must be in the entity list.
+- `source` and `target` must be in the given entity list.
 - If no relations found, return `{ "relations": [] }`.
 - Output must use the **same language** as the input.
 """

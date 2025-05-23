@@ -73,7 +73,7 @@ class GraphMemory:
         return self.graph_store.find_phase_node_by_name(entity_name)
 
     async def add_to_graph(
-        self, text: str, user_id: str, group_id: str = None, username: str = None
+        self, text: str, user_id: str, group_id: str = None, username: str = None, need_update: bool = False
     ) -> None:
         """将文本添加到图中
 
@@ -85,14 +85,14 @@ class GraphMemory:
             username = user_id
 
         entities = await self.get_entities(text)
-        print(f"Entities: {entities}")
+        # print(f"Entities: {entities}")
 
         if not entities:
             self.logger.info(f"对于`{text}`，没有检出任何 entities ")
             return
 
         relations = await self.build_relations(entities, text)
-        print(f"Relations: {relations}")
+        # print(f"Relations: {relations}")
 
         if not relations:
             self.logger.info(f"对于`{text}` `{entities}`，没有检出任何 relations ")
@@ -104,7 +104,8 @@ class GraphMemory:
 
         # Check Duplicate / Conflict
         # This step may set relation.fact to None
-        await self.check_relations(relations, user_id)
+        if need_update:
+            await self.check_relations(relations, user_id)
         relations = [r for r in relations if r.fact is not None]
         r_entities_name_map = {}
         for entity in relations:
@@ -214,8 +215,8 @@ class GraphMemory:
         all_facts_str = ""
         for idx, fact in enumerate(all_facts):
             all_facts_str += f"{idx}: {fact.data['text']}\n"
-        print(f"to_be_check_str: {to_be_check_str}")
-        print(f"all_facts_str: {all_facts_str}")
+        # print(f"to_be_check_str: {to_be_check_str}")
+        # print(f"all_facts_str: {all_facts_str}")
         prompt = REL_CHECK_PROMPT.format(
             new_facts=to_be_check_str,
             existing_facts=all_facts_str,
@@ -226,7 +227,7 @@ class GraphMemory:
             prompt=prompt,
         )
         cleaned_data = parse_json(llm_response.completion_text)
-        print(f"fact conflict detection LLM response: {cleaned_data}")
+        # print(f"fact conflict detection LLM response: {cleaned_data}")
         for idx, result in cleaned_data.items():
             assert isinstance(idx, str)
             assert isinstance(result, dict)
@@ -265,7 +266,7 @@ class GraphMemory:
                         new_fact=relations[idx].fact,
                     ),
                 )
-                print(f"llm_response_resum: {llm_response_resum.completion_text}")
+                # print(f"llm_response_resum: {llm_response_resum.completion_text}")
                 await self.vec_db_summary.document_storage.update_document_by_doc_id(
                     doc_id=old_summary_id,
                     new_text=llm_response_resum.completion_text,
@@ -287,7 +288,7 @@ class GraphMemory:
 
     async def search_graph(
         self, query: str, num_to_retrieval: int = 5, filters: dict = None
-    ) -> list[dict]:
+    ) -> dict:
         # --- FACT RESULTS
         results = await self.vec_db.retrieve(
             query=query,
@@ -397,7 +398,7 @@ class GraphMemory:
 
         passage_nodes = await self._get_passage_nodes()
 
-        print("AFTER PPR: ranked_scores", ranked_scores)
+        # print("AFTER PPR: ranked_scores", ranked_scores)
         ranked_docs = {}
         for node_id, score in ranked_scores.items():
             if node_id in passage_nodes:
@@ -424,6 +425,7 @@ class GraphMemory:
             system_prompt=EXTRACT_ENTITES_PROMPT,
             # func_tool=create_astrbot_func_mgr([EXTRACT_ENTITIES_TOOL]),
         )
+        self.logger.info(f"EXTRACT ENTITIES response: {llm_response.completion_text}")
         cleaned_data = parse_json(llm_response.completion_text)
         entites_data = cleaned_data.get("entities", [])
         entites = []
@@ -451,6 +453,7 @@ class GraphMemory:
             system_prompt=BUILD_RELATIONS_PROMPT,
             # func_tool=[BUILD_RELATIONS_TOOL],
         )
+        self.logger.info(f"BUILD RELATION response: {llm_response.completion_text}")
         cleaned_data = parse_json(llm_response.completion_text)
         relations_data = cleaned_data.get("relations", [])
         relations = []

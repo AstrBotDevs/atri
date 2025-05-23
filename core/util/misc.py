@@ -12,6 +12,11 @@ def parse_json(text: str) -> dict:
         dict: The parsed JSON object.
     """
     # Remove the code block markers
+    if """```""" not in text:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return {}
     pattern = re.compile(r"(?i)```json[\s\r\n]*(.*?)```", re.DOTALL)
     matches = pattern.findall(text)
     return json.loads(matches[0]) if matches else {}
