@@ -41,7 +41,8 @@ class EmbeddingStorage:
         Returns:
             tuple: (距离, 索引)
         """
-        distances, indices = self.index.search(vector.reshape(1, -1), k)
+        faiss.normalize_L2(vector)
+        distances, indices = self.index.search(vector, k)
         return distances, indices
 
     async def save_index(self):

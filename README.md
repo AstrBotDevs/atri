@@ -21,3 +21,14 @@
 
 
 ![1](https://github.com/user-attachments/assets/36644f85-2178-495f-8817-ea242e03975d)
+
+## LongMemEval Dataset
+
+参考 https://github.com/xiaowu0162/LongMemEval/
+
+```bash
+git clone https://github.com/xiaowu0162/LongMemEval/ --depth 1
+cd LongMemEval/data && wget https://huggingface.co/datasets/xiaowu0162/longmemeval/resolve/main/longmemeval_s?download=true && mv "longmemeval_s?download=true" longmemeval_s
+cd ..
+pip install -r requirements-lite.txt
+```
